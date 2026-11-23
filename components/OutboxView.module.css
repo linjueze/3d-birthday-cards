@@ -2,6 +2,7 @@
   min-height: 100svh;
   background: #fbfaf9;
   color: #25201e;
+  overflow-x: clip;
 }
 
 .header {
@@ -106,10 +107,35 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 4px 7px;
-  margin: 5px 0 0;
+  gap: 5px 8px;
+  margin: 6px 0 0;
   color: #746863;
   font-size: .77rem;
+}
+
+.templateTag {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #f4ece9;
+  color: #6b4b48;
+  font-size: .72rem;
+  white-space: nowrap;
+}
+
+.rowActions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.previewBtn {
+  min-height: 40px;
+  padding: 0 12px;
+}
+
+.deleteBtn {
+  width: 40px;
+  height: 40px;
 }
 
 .openState {
@@ -163,15 +189,34 @@
 .refreshError { margin-top: 14px; }
 
 @media (max-width: 620px) {
-  .header { padding: 16px 18px; }
-  .outbox { width: calc(100% - 32px); }
-  .row { padding: 14px 12px; column-gap: 9px; grid-template-columns: 34px minmax(0, 1fr) minmax(4.8rem, auto) 41px; }
-  .cover { width: 34px; height: 44px; }
-  .copy { width: 41px; min-width: 41px; padding: 0 !important; justify-content: center; }
-  .copy > span { display: none; }
-}
-
-@media (max-width: 375px) {
-  .row { grid-template-columns: minmax(0, 1fr) minmax(4.8rem, auto) 41px; }
-  .cover { display: none; }
+  .header { padding: 14px 16px; }
+  .outbox { width: calc(100% - 28px); padding: 20px 0 48px; }
+  .intro { margin-bottom: 20px; }
+  .emblem { width: 46px; height: 46px; margin-bottom: 10px; }
+  .intro p { font-size: .82rem; align-items: start; }
+  .list { border-radius: 20px; }
+  .row {
+    padding: 14px;
+    column-gap: 11px;
+    row-gap: 12px;
+    min-height: 0;
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "cover address state"
+      "actions actions actions";
+  }
+  .cover { grid-area: cover; width: 38px; height: 48px; }
+  .address { grid-area: address; min-width: 0; }
+  .openState { grid-area: state; justify-items: end; }
+  .rowActions {
+    grid-area: actions;
+    padding-top: 10px;
+    border-top: 1px dashed #eee4df;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .copy { flex: 1; min-height: 40px; padding: 0 12px; }
+  .previewBtn { min-height: 40px; padding: 0 14px; }
+  .deleteBtn { width: 40px; height: 40px; flex: none; background: #f8f3f1; }
 }

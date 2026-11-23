@@ -18,6 +18,7 @@ export type SceneProps = {
   onStickerMove?: (id: string, x: number, y: number) => void;
   onStickerCommit?: () => void;
   selectedSticker?: string | null;
+  focusMessage?: boolean;
   className?: string;
 };
 
@@ -78,6 +79,7 @@ export function createStage(
   read: () => SceneProps,
   available: (available: boolean) => void,
   onZoomChange?: (zoom: number) => void,
+  onWaxAnchor?: (xPct: number, yPct: number) => void,
 ) {
   const canvas = document.createElement("canvas");
   const options = { alpha: true, antialias: true, powerPreference: "high-performance" as const };
@@ -140,6 +142,10 @@ export function createStage(
   let requestedPanY = 0;
   let panX = 0;
   let panY = 0;
+  let activeFocusMessage = Boolean(read().focusMessage);
+  let lastWaxX = -1;
+  let lastWaxY = -1;
+  const waxWorld = new THREE.Vector3();
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
@@ -158,8 +164,8 @@ export function createStage(
     }
     const aspect = width / height;
     const factor = 1 - 1 / zLevel;
-    const maxX = cameraSize * aspect * .45 * factor;
-    const maxY = cameraSize * .45 * factor;
+    const maxX = cameraSize * aspect * .54 * factor;
+    const maxY = cameraSize * .52 * factor;
     requestedPanX = THREE.MathUtils.clamp(requestedPanX, -maxX, maxX);
     requestedPanY = THREE.MathUtils.clamp(requestedPanY, -maxY, maxY);
   }
@@ -319,6 +325,25 @@ export function createStage(
       }
     }
 
+    const wantFocus = Boolean(props.focusMessage) && Boolean(props.open) && ! (envelopePhase !== "none" && envelopePhase !== "opened");
+    if (activeFocusMessage !== wantFocus) {
+      activeFocusMessage = wantFocus;
+      if (wantFocus) {
+        requestedZoom = 1.85;
+        requestedPitch = 0;
+        requestedYaw = 0;
+        requestedPanX = CARD_WIDTH * .48;
+        requestedPanY = 0;
+        onZoomChange?.(1.85);
+      } else if (requestedZoom > 1.01) {
+        requestedZoom = 1;
+        requestedPanX = 0;
+        requestedPanY = 0;
+        onZoomChange?.(1);
+      }
+      wake(900);
+    }
+
     const wallTime = now - animationTime;
     const time = reducedMotion && wallTime >= 125 ? 3 : wallTime / 1000;
     const showEnvelope = envelopePhase !== "none" && envelopePhase !== "opened";
@@ -458,6 +483,18 @@ export function createStage(
       env.rotation.set(envRx, envRy, envRz);
       env.scale.setScalar(envelopeScale);
       envelope.update(flap, progress, wax, fracture);
+      if (onWaxAnchor && (envelopePhase === "unsealed" || envelopePhase === "sealed")) {
+        env.updateMatrixWorld(true);
+        envelope.waxSpot.getWorldPosition(waxWorld);
+        waxWorld.project(camera);
+        const wx = Math.round(((waxWorld.x + 1) * 50) * 10) / 10;
+        const wy = Math.round(((1 - waxWorld.y) * 50) * 10) / 10;
+        if (Math.abs(wx - lastWaxX) >= .2 || Math.abs(wy - lastWaxY) >= .2) {
+          lastWaxX = wx;
+          lastWaxY = wy;
+          onWaxAnchor(wx, wy);
+        }
+      }
       envShadow.position.x = .16;
       envShadow.position.y = positionY - 1.59;
       envShadow.scale.set(ENVELOPE_WIDTH * 1.28 * envelopeScale, .75, 1);
@@ -527,8 +564,13 @@ export function createStage(
   function zoomTo(nextZoom: number) {
     const props = read();
     if (props.envelope && props.envelope !== "none" && props.envelope !== "opened") return 1;
+    const prev = requestedZoom;
     const clamped = Math.round(THREE.MathUtils.clamp(nextZoom, MIN_ZOOM, MAX_ZOOM) * 100) / 100;
     requestedZoom = clamped;
+    // On narrow portrait screens, zooming into an unfolded card naturally biases toward the right message page.
+    if (prev <= 1.05 && clamped > 1.15 && props.open && width > 0 && height > 0 && width / height < 1.15 && Math.abs(requestedPanX) < .05) {
+      requestedPanX = CARD_WIDTH * .44;
+    }
     clampPan(clamped);
     wake(900);
     onZoomChange?.(clamped);

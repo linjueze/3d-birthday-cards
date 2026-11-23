@@ -86,8 +86,7 @@ export default function OutboxView() {
                   <div className={styles.address}>
                     <p className={styles.recipient}>寄给 {letter.recipient}</p>
                     <p className={styles.detail}>
-                      <span>{template?.name}</span>
-                      <span aria-hidden="true">·</span>
+                      <span className={styles.templateTag}>{template?.name}</span>
                       <time dateTime={letter.createdAt}>{formatTime(letter.createdAt)} 生成</time>
                     </p>
                   </div>
@@ -99,15 +98,15 @@ export default function OutboxView() {
                       <time dateTime={letter.deliverAt}>{formatTime(letter.deliverAt)} 开启</time>
                     )}
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div className={styles.rowActions}>
                     <button type="button" className={`pill pill-outline ${styles.copy}`} aria-label={`复制链接，寄给 ${letter.recipient}`} onClick={() => { void copyLetter(letter.sharePath); }}>
                       <Copy size={15} aria-hidden="true" /><span>复制链接</span>
                     </button>
-                    <Link className="icon-btn" href={letter.sharePath} target="_blank" rel="noreferrer" aria-label={`打开预览，寄给 ${letter.recipient}`} title="打开预览">
-                      <ExternalLink size={16} />
+                    <Link className={`pill pill-quiet ${styles.previewBtn}`} href={letter.sharePath} target="_blank" rel="noreferrer" aria-label={`打开预览，寄给 ${letter.recipient}`} title="打开预览">
+                      <ExternalLink size={15} aria-hidden="true" /><span>预览</span>
                     </Link>
-                    <button type="button" className="icon-btn" aria-label={`删除记录，寄给 ${letter.recipient}`} title="从本机移除" onClick={() => removeLetter(letter.id)}>
-                      <Trash2 size={15} />
+                    <button type="button" className={`icon-btn ${styles.deleteBtn}`} aria-label={`删除记录，寄给 ${letter.recipient}`} title="从本机移除" onClick={() => removeLetter(letter.id)}>
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 </li>

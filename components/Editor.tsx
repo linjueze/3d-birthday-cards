@@ -316,7 +316,7 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
     catch { notify("可以选中链接并手动复制。"); }
   }
 
-  return <main className="editor-shell" data-pack={pack}>
+  return <main className="editor-shell" data-pack={pack} data-panel={nextPanel ? "open" : "closed"} data-preview={preview ? "true" : "false"}>
     <header className="site-header editor-header">
       <div className="editor-header-brand"><Brand /><Link href="/" className="editor-home" aria-label="返回首页"><ArrowLeft size={15} /> 首页</Link></div>
       <div className="editor-steps" aria-label="制作步骤">
@@ -326,7 +326,7 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
       </div>
       {pack === "none"
         ? <button type="button" className="pill pill-primary editor-next" onClick={startPacking}>下一步 <ArrowRight size={16} /></button>
-        : <span className="editor-header-end">{sent ? <><Check size={16} /> 已生成</> : <><Stamp size={16} /> 封装中</>}</span>}
+        : <span className="editor-header-end">{sent ? <><Check size={16} /> 已生成</> : pack === "sealed" ? <><Check size={16} /> 已盖火漆</> : <><Stamp size={16} /> 封装中</>}</span>}
     </header>
     <div className={`editor-workspace ${nextPanel ? "editor-with-panel" : ""}`}>
       <section className="editor-stage" aria-label={pack === "none" ? "实时 3D 贺卡预览" : "3D 信封封装"}>
@@ -432,6 +432,7 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
             <div><input id="recipient-link" readOnly value={baseUrl + withBasePath(sent.recipientPath)} onFocus={(event) => event.currentTarget.select()} />
               <button type="button" className="icon-btn" aria-label="复制收件人链接" title="复制收件人链接" onClick={() => void copy(sent.recipientPath)}><Copy size={16} /></button>
               <Link className="icon-btn" href={sent.recipientPath} target="_blank" rel="noreferrer" aria-label="打开预览" title="在新标签预览"><ExternalLink size={16} /></Link></div>
+            <button type="button" className="pill pill-primary share-copy-cta" onClick={() => void copy(sent.recipientPath)}><Copy size={16} />一键复制收件链接</button>
           </div>
           <div className="share-field">
             <label htmlFor="outbox-link">本机寄件箱</label>
@@ -440,7 +441,7 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
               <Link className="icon-btn" href={sent.outboxPath} target="_blank" rel="noreferrer" aria-label="打开寄件箱" title="打开寄件箱"><ExternalLink size={16} /></Link></div>
           </div>
           <div className="send-shortcuts">
-            <button type="button" className="pill pill-primary" onClick={() => newLetter(true)}><Copy size={16} />复制一封，寄给下一位</button>
+            <button type="button" className="pill pill-outline" onClick={() => newLetter(true)}><Copy size={16} />复制一封，寄给下一位</button>
             <button type="button" className="pill pill-outline" onClick={() => newLetter(false)}>从头写一封</button>
           </div>
         </> : <>
@@ -458,7 +459,7 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
         </>}
       </aside>}
     </div>
-    {pack === "none" && <nav className="editor-dock glass" aria-label="贺卡编辑工具">
+    {pack === "none" && !preview && <nav className="editor-dock glass" aria-label="贺卡编辑工具">
       {tools.map(({ id, label, icon: Icon }) => <button type="button" key={id} aria-pressed={!preview && drawer === id} onClick={() => selectDrawer(id)}><Icon size={19} strokeWidth={1.65} /><span>{label}</span></button>)}
     </nav>}
     {toast}

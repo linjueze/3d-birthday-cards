@@ -1,7 +1,8 @@
 .page {
-  min-height: 100svh;
+  min-height: 100dvh;
   color: #261d1c;
   background: radial-gradient(ellipse at 50% 50%, #f6eee8 0%, #fbfaf9 69%);
+  overflow-x: clip;
 }
 
 .header {
@@ -83,16 +84,20 @@
 .waxTarget {
   position: absolute;
   z-index: 4;
-  top: 54.5%;
-  left: 50%;
-  width: clamp(50px, 9vh, 84px);
-  height: clamp(50px, 9vh, 84px);
+  top: var(--wax-y, 55%);
+  left: var(--wax-x, 50%);
+  width: clamp(58px, 10vh, 84px);
+  height: clamp(58px, 10vh, 84px);
   padding: 0;
   transform: translate(-50%, -50%);
   border-radius: 50%;
   border: 1px solid transparent;
   background: transparent;
   cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
   transition: background .2s ease, border-color .2s ease;
 }
 
@@ -246,11 +251,15 @@
 }
 
 @media (max-width: 620px) {
-  .header { padding: 16px 18px; }
+  .header { padding: 12px 16px; }
   .headerNote { font-size: .75rem; }
-  .experience { padding: 12px 6px 24px; }
-  .stage { height: clamp(275px, 55svh, 550px); }
-  .actions { padding-inline: 12px; }
+  .experience { padding: 6px 6px 20px; }
+  .title h1 { font-size: clamp(1.5rem, 6.2vw, 2.2rem); }
+  .title p { font-size: .82rem; margin-top: .35rem; }
+  .stage { height: clamp(300px, 54dvh, 520px); }
+  .actions { padding-inline: 12px; min-height: 70px; }
+  .controls { gap: 8px; }
+  .controls :global(.pill) { min-height: 42px; padding-inline: 14px; font-size: 13px; }
 }
 
 @media (max-width: 350px) {

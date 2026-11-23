@@ -426,7 +426,7 @@ export function buildEnvelope(paper: ScenePaperMaps) {
   const geometry = flapGeometry(ENVELOPE_WIDTH, flapHeight);
   flap.add(new THREE.Mesh(geometry, face), new THREE.Mesh(geometry, linerReverse));
   const waxSpot = new THREE.Group();
-  waxSpot.position.set(0, -flapHeight + .045, .035);
+  waxSpot.position.set(0, -flapHeight + .01, .035);
   flap.add(waxSpot);
   const waxMaterial = studioMaterial({ color: "#9f354d", roughness: .25, clearcoat: .86, clearcoatRoughness: .15, metalness: .09 });
   const stampMaterial = studioMaterial({ color: "#c2677e", emissive: "#5e1629", emissiveIntensity: .08, roughness: .38, clearcoat: .60 });
@@ -480,7 +480,7 @@ export function buildEnvelope(paper: ScenePaperMaps) {
   }
 
   update(0, 0, 0, 0);
-  return { root, update };
+  return { root, waxSpot, update };
 }
 
 export function disposeScene(root: THREE.Object3D, paper: ScenePaperMaps) {

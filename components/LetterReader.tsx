@@ -1,6 +1,6 @@
 "use client";
 
-import { AlignLeft, BookHeart, BookOpen, Clock3, LockKeyhole, MailOpen, Rotate3D, Volume2, VolumeX, X } from "lucide-react";
+import { AlignLeft, BookHeart, BookOpen, Clock3, LockKeyhole, MailOpen, Maximize2, Minimize2, Rotate3D, Volume2, VolumeX, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { defaultDraft, type CardDraft } from "@/lib/cards";
@@ -45,6 +45,7 @@ export default function LetterReader() {
   const [scene, setScene] = useState<Scene>("sealed");
   const [draft, setDraft] = useState<CardDraft>(() => defaultDraft());
   const [open, setOpen] = useState(false);
+  const [focusMessage, setFocusMessage] = useState(false);
   const [burst, setBurst] = useState(false);
   const hasOpenedCard = useRef(false);
   const transcript = useRef<HTMLDialogElement>(null);
@@ -110,8 +111,10 @@ export default function LetterReader() {
 
   function toggleCard() {
     if (scene !== "opened") return;
-    setOpen(!open);
-    if (!open && !hasOpenedCard.current) {
+    const next = !open;
+    setOpen(next);
+    if (!next) setFocusMessage(false);
+    if (next && !hasOpenedCard.current) {
       hasOpenedCard.current = true;
       setBurst(true);
     }
@@ -155,6 +158,7 @@ export default function LetterReader() {
               mode="letter"
               envelope={scene}
               open={open}
+              focusMessage={focusMessage}
               onToggle={toggleCard}
               onReady={extractionComplete}
             />
@@ -201,12 +205,18 @@ export default function LetterReader() {
                     </button>
                   )}
                   {open && (
+                    <button type="button" className="pill pill-outline" aria-pressed={focusMessage} onClick={() => setFocusMessage((value) => !value)}>
+                      {focusMessage ? <Minimize2 size={16} aria-hidden="true" /> : <Maximize2 size={16} aria-hidden="true" />}
+                      {focusMessage ? "看双页" : "放大读字"}
+                    </button>
+                  )}
+                  {open && (
                     <button type="button" className="pill pill-outline" onClick={() => transcript.current?.showModal()}>
                       <AlignLeft size={17} aria-hidden="true" /> 文字版
                     </button>
                   )}
                 </div>
-                <p className={styles.hint}><Rotate3D size={15} aria-hidden="true" /> 拖动旋转，滚轮放大看看纸页光影</p>
+                <p className={styles.hint}><Rotate3D size={15} aria-hidden="true" /> 拖动旋转 · 放大后单指平移看细节</p>
               </div>
             )}
           </div>

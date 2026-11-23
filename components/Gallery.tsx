@@ -41,7 +41,7 @@ export default function Gallery() {
         <div className="hero-tag"><Sparkles size={14} strokeWidth={1.6} /><span>3D 生日贺卡工作室</span></div>
         <h1 id="gallery-title">把生日，<br /><em>写成一封信。</em></h1>
         <p>挑一张立体纸艺贺卡，写下想说的话，<br className="desktop-break" /> 盖上火漆，把心意寄给重要的人。</p>
-        <div className="hero-hint"><Mouse size={16} strokeWidth={1.65} /> 拖动旋转，滚轮放大查看细节 <ArrowDownRight size={14} /></div>
+        <div className="hero-hint"><Mouse size={16} strokeWidth={1.65} /> 拖动旋转 · 双指或滚轮放大细节 <ArrowDownRight size={14} /></div>
       </div>
       <div className={`gallery-display ${open ? "gallery-display-open" : ""}`}>
         <div className="gallery-glow" aria-hidden="true" />

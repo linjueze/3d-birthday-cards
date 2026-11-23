@@ -208,7 +208,12 @@ export default function CardScene(props: SceneProps) {
   useEffect(() => {
     const element = host.current;
     if (!element) return;
-    stage.current = createStage(element, () => latest.current, setGpu, setZoom);
+    const updateWax = (xPct: number, yPct: number) => {
+      const target = root.current?.parentElement ?? root.current;
+      target?.style.setProperty("--wax-x", `${xPct}%`);
+      target?.style.setProperty("--wax-y", `${yPct}%`);
+    };
+    stage.current = createStage(element, () => latest.current, setGpu, setZoom, updateWax);
     return () => {
       stage.current?.destroy();
       stage.current = undefined;
@@ -265,7 +270,8 @@ export default function CardScene(props: SceneProps) {
     if ((event.button !== 0 && !isRightPan) || gesture.current) return;
     const { clientX, clientY, pointerId, currentTarget } = event;
     const hit = gpu && stage.current ? stage.current.hit(clientX, clientY) : fallbackHit(event.target as HTMLElement, currentTarget, props, clientX, clientY);
-    const panning = canZoom && zoom > 1.02 && (isRightPan || event.shiftKey);
+    const touchPan = event.pointerType === "touch" && zoom > 1.05 && !hit.sticker;
+    const panning = canZoom && zoom > 1.02 && (isRightPan || event.shiftKey || touchPan);
     gesture.current = { id: pointerId, startX: clientX, startY: clientY, lastX: clientX, lastY: clientY, hit, moved: false, panning };
     if (hit.sticker && !panning) props.onStickerSelect?.(hit.sticker);
     currentTarget.setPointerCapture(pointerId);
@@ -351,36 +357,39 @@ export default function CardScene(props: SceneProps) {
   return (
     <div
       ref={root}
-      className={`birthday-scene relative h-full w-full touch-none cursor-grab active:cursor-grabbing ${props.className ?? ""}`}
-      role={canToggle ? "button" : "img"}
-      tabIndex={canToggle ? 0 : undefined}
-      aria-label={canToggle ? (props.open ? "合上贺卡" : "翻开贺卡") : "三维生日信预览"}
-      aria-pressed={canToggle ? Boolean(props.open) : undefined}
+      className={`birthday-scene relative h-full w-full ${props.className ?? ""}`}
       onContextMenu={(event) => { if (zoom > 1.02) event.preventDefault(); }}
-      onKeyDown={(event) => {
-        if (canToggle && (event.key === " " || event.key === "Enter")) {
-          event.preventDefault();
-          props.onToggle?.();
-        }
-      }}
-      onPointerDown={pointerDown}
-      onPointerMove={pointerMove}
-      onPointerUp={(event) => pointerEnd(event)}
-      onPointerCancel={(event) => pointerEnd(event, true)}
-      onLostPointerCapture={(event) => pointerEnd(event, true)}
     >
-      <div ref={host} className="absolute inset-0" aria-hidden="true" />
-      {!gpu && <Fallback {...props} />}
+      <div
+        className="birthday-scene-surface absolute inset-0 touch-none cursor-grab active:cursor-grabbing"
+        role={canToggle ? "button" : "img"}
+        tabIndex={canToggle ? 0 : undefined}
+        aria-label={canToggle ? (props.open ? "合上贺卡" : "翻开贺卡") : "三维生日信预览"}
+        aria-pressed={canToggle ? Boolean(props.open) : undefined}
+        onKeyDown={(event) => {
+          if (canToggle && (event.key === " " || event.key === "Enter")) {
+            event.preventDefault();
+            props.onToggle?.();
+          }
+        }}
+        onPointerDown={pointerDown}
+        onPointerMove={pointerMove}
+        onPointerUp={(event) => pointerEnd(event)}
+        onPointerCancel={(event) => pointerEnd(event, true)}
+        onLostPointerCapture={(event) => pointerEnd(event, true)}
+      >
+        <div ref={host} className="absolute inset-0" aria-hidden="true" />
+        {!gpu && <Fallback {...props} />}
+      </div>
       {canZoom && (
         <div
           className={`scene-zoom-bar glass ${zoom > 1.02 ? "is-zoomed" : ""}`}
           role="group"
           aria-label="贺卡缩放控制"
-          onPointerDown={(event) => event.stopPropagation()}
         >
-          <button type="button" className="icon-btn" aria-label="缩小" title="缩小（或滚轮向下）" disabled={zoom <= MIN_ZOOM + .01} onClick={() => applyZoomBy(1 / 1.25)}><ZoomOut size={15} /></button>
+          <button type="button" className="icon-btn" aria-label="缩小" title="缩小" disabled={zoom <= MIN_ZOOM + .01} onClick={() => applyZoomBy(1 / 1.25)}><ZoomOut size={15} /></button>
           <button type="button" className="scene-zoom-pct" aria-label="重置缩放" title="点击复位视角" onClick={resetView}>{zoomPercent}%</button>
-          <button type="button" className="icon-btn" aria-label="放大查看细节" title="放大查看细节（或滚轮向上）" disabled={zoom >= MAX_ZOOM - .01} onClick={() => applyZoomBy(1.25)}><ZoomIn size={15} /></button>
+          <button type="button" className="icon-btn" aria-label="放大查看细节" title="放大查看细节" disabled={zoom >= MAX_ZOOM - .01} onClick={() => applyZoomBy(1.25)}><ZoomIn size={15} /></button>
           {zoom > 1.02 && (
             <button type="button" className="icon-btn" aria-label="复位视角" title="复位视角" onClick={resetView}><RotateCcw size={14} /></button>
           )}
