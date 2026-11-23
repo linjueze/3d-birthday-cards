@@ -19,11 +19,22 @@ export interface CoverMaterialManifest {
   maps?: Partial<Record<keyof CoverArt, string>>;
 }
 
+function coverMaps(slug: TemplateSlug): Partial<Record<keyof CoverArt, string>> {
+  const root = `/assets/cards/${slug}`;
+  return {
+    base: `${root}/base.webp`,
+    illustration: `${root}/relief.webp`,
+    foil: `${root}/foil.webp`,
+    height: `${root}/height.webp`,
+    composite: `${root}/base.webp`,
+  };
+}
+
 export const COVER_MANIFEST: Record<TemplateSlug, CoverMaterialManifest> = {
-  "candlelight-cake": { procedural: coverArt },
-  "starry-wish": { procedural: coverArt },
-  "bloom-garden": { procedural: coverArt },
-  "confetti-atelier": { procedural: coverArt },
+  "candlelight-cake": { procedural: coverArt, maps: coverMaps("candlelight-cake") },
+  "starry-wish": { procedural: coverArt, maps: coverMaps("starry-wish") },
+  "bloom-garden": { procedural: coverArt, maps: coverMaps("bloom-garden") },
+  "confetti-atelier": { procedural: coverArt, maps: coverMaps("confetti-atelier") },
 };
 
 const covers = new Map<TemplateSlug, CoverArt>();

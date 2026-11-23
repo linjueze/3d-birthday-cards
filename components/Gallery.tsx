@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import CardScene from "@/components/CardScene";
 import { Brand, savedOutbox, useToast } from "@/components/Shared";
 import { CardThumb } from "@/components/Thumbnails";
+import { loadCoverArt } from "@/lib/art";
 import { defaultDraft, TEMPLATES, type TemplateSlug } from "@/lib/cards";
 
 export default function Gallery() {
@@ -13,7 +14,10 @@ export default function Gallery() {
   const [open, setOpen] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const { notify, toast } = useToast();
-  useEffect(() => { setToken(savedOutbox()); }, []);
+  useEffect(() => {
+    setToken(savedOutbox());
+    for (const item of TEMPLATES) void loadCoverArt(item.slug);
+  }, []);
   const selected = TEMPLATES.findIndex((theme) => theme.slug === slug);
   const template = TEMPLATES[selected];
   const draft = useMemo(() => ({

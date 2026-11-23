@@ -1,6 +1,8 @@
 .birthday-scene {
   container-type: size;
   isolation: isolate;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .birthday-scene:focus-visible {
   outline: 1px dashed #9a784d;
@@ -13,8 +15,12 @@
   inset: 0;
   display: grid;
   place-items: center;
-  overflow: hidden;
+  overflow: visible;
   perspective: 70rem;
+}
+.scene-fallback[data-phase="packing"],
+.scene-fallback[data-phase="breaking"] {
+  overflow: hidden;
 }
 .scene-fallback-side,
 .scene-fallback-book {
@@ -151,7 +157,7 @@
   place-items: center;
   z-index: 4;
   left: 50%;
-  top: 56%;
+  top: 57.5%;
   width: var(--wax-size);
   aspect-ratio: 1;
   translate: -50% -50%;

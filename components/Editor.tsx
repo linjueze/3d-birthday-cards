@@ -11,6 +11,7 @@ import { flushSync } from "react-dom";
 import CardScene from "@/components/CardScene";
 import { Brand, copyText, prepareSealSound, rememberOutbox, savedOutbox, Stars, useMusic, useToast } from "@/components/Shared";
 import { CardThumb, StickerThumb } from "@/components/Thumbnails";
+import { STICKER_BASE_SIZE } from "@/lib/art";
 import {
   defaultDraft, FONT_OPTIONS, MAX_AUDIO_BYTES, PAPER_OPTIONS, STICKERS, TEMPLATES, WISHES,
   type CardDraft, type Music, type StickerId, type TemplateSlug,
@@ -145,7 +146,11 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
 
   function selectDrawer(id: Drawer) {
     setPreview(false);
-    setDrawer((value) => value === id ? null : id);
+    setDrawer((value) => {
+      const next = value === id ? null : id;
+      if (next !== "stickers") setSelectedSticker(null);
+      return next;
+    });
     if (id === "stickers" || id === "text") setOpen(true);
     if (id === "cover") setOpen(false);
   }
@@ -153,9 +158,16 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
   function addSticker(type: StickerId) {
     if (draft.stickers.length >= MAX_STICKERS) { notify(`这一页已经放了 ${MAX_STICKERS} 枚贴纸。`); return; }
     const id = makeId();
+    const spawnSlots: readonly [number, number][] = [
+      [.23, .77], [.77, .28], [.23, .58], [.78, .56], [.38, .78], [.62, .28], [.24, .36], [.76, .42],
+    ];
     edit((current) => {
       const index = current.stickers.length;
-      return { ...current, stickers: [...current.stickers, { id, type, x: .78 - (index % 3) * .15, y: .8 - (Math.floor(index / 3) % 4) * .16, scale: 1 }] };
+      const [baseX, baseY] = spawnSlots[index % spawnSlots.length];
+      const ring = Math.floor(index / spawnSlots.length);
+      const x = Math.min(.86, Math.max(.14, baseX + (ring % 2 ? .04 : -.03) * Math.min(ring, 2)));
+      const y = Math.min(.86, Math.max(.14, baseY - ring * .03));
+      return { ...current, stickers: [...current.stickers, { id, type, x, y, scale: 1 }] };
     });
     setSelectedSticker(id);
     setOpen(true);
@@ -175,9 +187,18 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
     if (snapshot) setHistory((current) => ({ ...current, past: cap(current.past, snapshot), future: [] }));
   }
 
+  function clampSticker(sticker: CardDraft["stickers"][number], change: { scale?: number; x?: number; y?: number }) {
+    const scale = change.scale ?? sticker.scale;
+    const padX = Math.max(.12, STICKER_BASE_SIZE * scale * .58 + .02);
+    const padY = Math.max(.10, STICKER_BASE_SIZE * scale * .44 + .02);
+    const x = Math.min(1 - padX, Math.max(padX, change.x ?? sticker.x));
+    const y = Math.min(1 - padY, Math.max(padY, change.y ?? sticker.y));
+    return { ...sticker, scale, x, y };
+  }
+
   function adjustSticker(change: { scale?: number; x?: number; y?: number }) {
     if (!activeSticker) return;
-    edit((current) => ({ ...current, stickers: current.stickers.map((sticker) => sticker.id === activeSticker.id ? { ...sticker, ...change } : sticker) }));
+    edit((current) => ({ ...current, stickers: current.stickers.map((sticker) => sticker.id === activeSticker.id ? clampSticker(sticker, change) : sticker) }));
   }
 
   function deleteSticker() {
@@ -368,8 +389,11 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
             <button type="button" aria-pressed={open} onClick={() => setOpen(true)}>内页 <span>2/2</span></button>
             <i />
             <button type="button" className="stage-fold" onClick={() => setOpen((value) => !value)}><BookOpen size={15} />{open ? "合上贺卡" : "翻开贺卡"}</button>
-          </div> : <div className="pack-note" aria-live="polite">
-            {pack === "packing" ? "正在将贺卡装入信封…" : pack === "unsealed" ? "按住火漆处 1 秒，盖上印章" : sent ? "把收件人链接发给 TA，就能送达这份心意。" : "火漆已盖好，可以寄出了。"}
+          </div> : <div className="pack-footer">
+            <div className="pack-note" aria-live="polite">
+              {pack === "packing" ? "正在将贺卡装入信封…" : pack === "unsealed" ? "按住火漆处 1 秒，盖上印章" : sent ? "把收件人链接发给 TA，就能送达这份心意。" : "火漆已盖好，可以寄出了。"}
+            </div>
+            {!sent && <button type="button" className="pill pill-outline edit-again" disabled={busy} onClick={backToWriting}><ArrowLeft size={15} />返回做卡</button>}
           </div>}
         </div>
       </section>
@@ -378,7 +402,7 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
         <div className="editor-panel-title">
           <div><h2>{drawer === "text" ? "写下祝福" : drawer === "cover" ? "挑选封面" : drawer === "paper" ? "挑选纸张" : drawer === "stickers" ? "点缀贴纸" : "搭配音乐"}</h2>
             <p>{drawer === "text" ? "写在贺卡内页，等 TA 亲手翻开。" : drawer === "cover" ? "四种纸艺主题，点击更换封面。" : drawer === "paper" ? "拖动贺卡，可看到纸纹与光泽变化。" : drawer === "stickers" ? "点选添加，拖动内页上的贴纸以移动。" : "拆信后，收件人可以选择播放。"}</p></div>
-          <button type="button" className="icon-btn panel-close" aria-label="收起面板" onClick={() => setDrawer(null)}><X size={18} /></button>
+          <button type="button" className="icon-btn panel-close" aria-label="收起面板" onClick={() => { setDrawer(null); setSelectedSticker(null); }}><X size={18} /></button>
         </div>
         {drawer === "cover" && <div className="editor-cover-grid">
           {TEMPLATES.map((item) => <button type="button" key={item.slug} className="editor-cover-choice" aria-pressed={draft.template === item.slug} onClick={() => edit({ template: item.slug })}>
@@ -399,9 +423,9 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
               <select value={activeSticker?.id ?? ""} onChange={(event) => setSelectedSticker(event.target.value || null)}><option value="">请选择</option>{draft.stickers.map((sticker, index) => <option key={sticker.id} value={sticker.id}>{STICKERS.find(({ id }) => id === sticker.type)?.label} {index + 1}</option>)}</select>
             </label>
             {activeSticker && <>
-              <label className="range-field">大小<input type="range" min=".4" max="2" step=".05" value={activeSticker.scale} onChange={(event) => adjustSticker({ scale: Number(event.target.value) })} /></label>
-              <label className="range-field">横向<input type="range" min=".04" max=".96" step=".01" value={activeSticker.x} onChange={(event) => adjustSticker({ x: Number(event.target.value) })} /></label>
-              <label className="range-field">纵向<input type="range" min=".04" max=".96" step=".01" value={activeSticker.y} onChange={(event) => adjustSticker({ y: Number(event.target.value) })} /></label>
+              <label className="range-field">大小<input type="range" min=".4" max="1.6" step=".05" value={activeSticker.scale} onChange={(event) => adjustSticker({ scale: Number(event.target.value) })} /></label>
+              <label className="range-field">横向<input type="range" min=".12" max=".88" step=".01" value={activeSticker.x} onChange={(event) => adjustSticker({ x: Number(event.target.value) })} /></label>
+              <label className="range-field">纵向<input type="range" min=".12" max=".88" step=".01" value={activeSticker.y} onChange={(event) => adjustSticker({ y: Number(event.target.value) })} /></label>
               <button type="button" className="pill pill-outline sticker-delete" onClick={deleteSticker}><Trash2 size={15} /> 删除贴纸</button>
             </>}
           </div>}
@@ -463,7 +487,6 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
     {pack === "none" && <nav className="editor-dock glass" aria-label="贺卡编辑工具">
       {tools.map(({ id, label, icon: Icon }) => <button type="button" key={id} aria-pressed={!preview && drawer === id} onClick={() => selectDrawer(id)}><Icon size={19} strokeWidth={1.65} /><span>{label}</span></button>)}
     </nav>}
-    {pack !== "none" && !sent && <button type="button" className="pill pill-outline edit-again" disabled={busy} onClick={backToWriting}><ArrowLeft size={15} />返回做卡</button>}
     {toast}
   </main>;
 }

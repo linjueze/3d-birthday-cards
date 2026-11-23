@@ -194,8 +194,12 @@ export default function CardScene(props: SceneProps) {
     if (active.hit.sticker && props.onStickerMove) {
       const p = gpu && stage.current ? stage.current.paperPoint(event.clientX, event.clientY) : fallbackPoint(root, event.clientX, event.clientY);
       if (p) {
-        const x = limit(p.x - (active.hit.x ?? 0), .09, .91);
-        const y = limit(p.y - (active.hit.y ?? 0), .08, .92);
+        const currentSticker = props.draft.stickers.find((item) => item.id === active.hit.sticker);
+        const scale = currentSticker?.scale ?? 1;
+        const padX = Math.max(.12, STICKER_BASE_SIZE * scale * .58 + .02);
+        const padY = Math.max(.10, STICKER_BASE_SIZE * scale * .44 + .02);
+        const x = limit(p.x - (active.hit.x ?? 0), padX, 1 - padX);
+        const y = limit(p.y - (active.hit.y ?? 0), padY, 1 - padY);
         props.onStickerMove(active.hit.sticker, x, y);
       }
     } else if (active.hit.slug === props.draft.template) {

@@ -62,6 +62,8 @@
   height: clamp(330px, 56svh, 730px);
   position: relative;
   isolation: isolate;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .cardScene {
@@ -81,7 +83,7 @@
 .waxTarget {
   position: absolute;
   z-index: 4;
-  top: 53%;
+  top: 54.5%;
   left: 50%;
   width: clamp(50px, 9vh, 84px);
   height: clamp(50px, 9vh, 84px);

@@ -98,9 +98,9 @@ export function buildBook(slug: TemplateSlug, draft: CardDraft, allMaps: ScenePa
     transparent: true, depthWrite: false, alphaTest: .025, clearcoat: .21, clearcoatRoughness: .57, roughness: .73,
   });
   const foil = studioMaterial({
-    map: imageTexture(artwork.foil), normalMap: reliefNormal, normalScale: new THREE.Vector2(.46, .46),
-    transparent: true, depthWrite: false, alphaTest: .035, clearcoat: .51, clearcoatRoughness: .24,
-    roughness: .45, metalness: .24, emissive: new THREE.Color("#805922"), emissiveIntensity: .07,
+    map: imageTexture(artwork.foil), normalMap: reliefNormal, normalScale: new THREE.Vector2(.54, .54),
+    transparent: true, depthWrite: false, alphaTest: .035, clearcoat: .72, clearcoatRoughness: .2,
+    roughness: .32, metalness: .48, emissive: new THREE.Color("#8a6226"), emissiveIntensity: .08,
   });
   let active = true;
   if (Object.keys(COVER_MANIFEST[slug].maps ?? {}).length) {
@@ -112,7 +112,9 @@ export function buildBook(slug: TemplateSlug, draft: CardDraft, allMaps: ScenePa
       }
       if (replacement.height !== artwork.height) {
         reliefNormal.dispose();
-        relief.normalMap = foil.normalMap = heightNormal(replacement.height, .67);
+        const nextNormal = heightNormal(replacement.height, .72);
+        relief.normalMap = foil.normalMap = nextNormal;
+        relief.needsUpdate = foil.needsUpdate = true;
       }
       onMaterialChange();
     }).catch(() => undefined);
