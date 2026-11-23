@@ -1,22 +1,24 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   ArrowLeft, ArrowRight, BookOpen, Check, ChevronRight, CircleHelp, Copy, ExternalLink, Eye,
   EyeOff, Layers2, Mail, Music2, PackageCheck, Pause, Play, Redo2, Send, Sparkles, Stamp,
-  Sticker as StickerIcon, Trash2, Type, Undo2, Upload, X,
+  Sticker as StickerIcon, Trash2, Type, Undo2, X,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent, type PointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { flushSync } from "react-dom";
 import CardScene from "@/components/CardScene";
-import { Brand, copyText, prepareSealSound, rememberOutbox, savedOutbox, Stars, useMusic, useToast } from "@/components/Shared";
+import { Brand, copyText, prepareSealSound, Stars, useMusic, useToast } from "@/components/Shared";
 import { CardThumb, StickerThumb } from "@/components/Thumbnails";
-import { STICKER_BASE_SIZE } from "@/lib/art";
+import { loadCoverArt, STICKER_BASE_SIZE } from "@/lib/art";
 import {
-  defaultDraft, FONT_OPTIONS, MAX_AUDIO_BYTES, PAPER_OPTIONS, STICKERS, TEMPLATES, WISHES,
+  defaultDraft, FONT_OPTIONS, isTemplateSlug, PAPER_OPTIONS, STICKERS, TEMPLATES, WISHES,
   type CardDraft, type Music, type StickerId, type TemplateSlug,
 } from "@/lib/cards";
-import { MAX_MESSAGE_LENGTH, MAX_NAME_LENGTH, MAX_STICKERS, type SentLetter } from "@/lib/letters";
+import { MAX_MESSAGE_LENGTH, MAX_NAME_LENGTH, MAX_STICKERS } from "@/lib/letters";
+import { encodeSharedLetter, saveLocalOutboxItem, withBasePath } from "@/lib/share-codec";
 
 const tools = [
   { id: "cover", label: "封面", icon: Layers2 },
@@ -59,19 +61,17 @@ function deliveryDate(delivery: Delivery, birthday: string, scheduled: string): 
   return date.toISOString();
 }
 
-const audioTypes = { mp3: "audio/mpeg", wav: "audio/wav", m4a: "audio/mp4" } as const;
-
-function readAudio(file: File, type: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("读取音频失败"));
-    reader.onerror = () => reject(new Error("读取音频失败"));
-    reader.readAsDataURL(new Blob([file], { type }));
-  });
-}
+type SentShare = {
+  id: string;
+  recipientPath: string;
+  outboxPath: string;
+};
 
 export default function Editor({ initialTemplate }: { initialTemplate?: TemplateSlug }) {
-  const [history, setHistory] = useState<History>(() => ({ past: [], draft: defaultDraft(initialTemplate), future: [] }));
+  const searchParams = useSearchParams();
+  const queryTemplate = searchParams.get("template");
+  const resolvedTemplate = initialTemplate ?? (isTemplateSlug(queryTemplate) ? queryTemplate : undefined);
+  const [history, setHistory] = useState<History>(() => ({ past: [], draft: defaultDraft(resolvedTemplate), future: [] }));
   const { draft, past, future } = history;
   const [drawer, setDrawer] = useState<Drawer | null>("text");
   const [open, setOpen] = useState(false);
@@ -82,20 +82,16 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
   const [delivery, setDelivery] = useState<Delivery>("now");
   const [scheduled, setScheduled] = useState("");
   const [minimum, setMinimum] = useState("");
-  const [sent, setSent] = useState<SentLetter | null>(null);
+  const [sent, setSent] = useState<SentShare | null>(null);
   const [baseUrl, setBaseUrl] = useState("");
   const [busy, setBusy] = useState(false);
-  const [readingAudio, setReadingAudio] = useState(false);
   const { notify, toast } = useToast();
   const { playing, toggle: toggleMusic, stop: stopMusic } = useMusic(draft.music);
   const recipientInput = useRef<HTMLInputElement>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
   const dragOriginal = useRef<CardDraft | null>(null);
   const holdFrame = useRef<number | null>(null);
   const sealSound = useRef<ReturnType<typeof prepareSealSound>>(null);
-  const requestId = useRef<string | null>(null);
   const sending = useRef(false);
-  const outboxToken = useRef<string | null>(null);
   const theme = TEMPLATES.find(({ slug }) => slug === draft.template) ?? TEMPLATES[0];
   const activeSticker = draft.stickers.find(({ id }) => id === selectedSticker);
   const nextPanel = pack !== "none" ? (pack === "sealed" ? "pack" : null) : preview ? null : drawer;
@@ -124,7 +120,7 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
   useEffect(() => {
     setMinimum(localDateValue());
     setBaseUrl(window.location.origin);
-    outboxToken.current = savedOutbox();
+    for (const item of TEMPLATES) void loadCoverArt(item.slug);
   }, []);
 
   useEffect(() => {
@@ -207,24 +203,6 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
     setSelectedSticker(null);
   }
 
-  async function uploadAudio(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-    const extension = file.name.split(".").at(-1)?.toLowerCase();
-    const mime = audioTypes[extension as keyof typeof audioTypes];
-    if (!mime || !file.size || file.size > MAX_AUDIO_BYTES) {
-      notify("请选择 15 MB 以内的 MP3、WAV 或 M4A 音频。");
-      return;
-    }
-    setReadingAudio(true);
-    try {
-      const data = await readAudio(file, mime);
-      edit({ music: { kind: "upload", name: file.name.slice(-180), data } });
-    } catch { notify("无法读取这段音频，请重试。"); }
-    finally { setReadingAudio(false); }
-  }
-
   function startPacking() {
     if (!draft.recipient.trim()) {
       notify("在「Dear」后面写上 TA 的名字，寄件箱里靠它区分每一封");
@@ -240,7 +218,6 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
     setSelectedSticker(null);
     setPack("packing");
     setProgress(0);
-    requestId.current = makeId();
   }
 
   const sceneReady = useCallback(() => {
@@ -291,7 +268,6 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
     setProgress(0);
     setSent(null);
     setOpen(false);
-    requestId.current = null;
   }
 
   async function sendLetter() {
@@ -306,22 +282,21 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
     sending.current = true;
     setBusy(true);
     try {
-      const response = await fetch("/api/letters", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ draft, deliverAt, outboxToken: outboxToken.current || undefined, requestId: requestId.current ?? undefined }),
+      const token = await encodeSharedLetter(draft, deliverAt);
+      const id = makeId();
+      const recipientPath = `/letter/?c=${encodeURIComponent(token)}`;
+      const outboxPath = "/outbox/";
+      saveLocalOutboxItem({
+        id,
+        recipient: draft.recipient.trim(),
+        template: draft.template,
+        createdAt: new Date().toISOString(),
+        deliverAt,
+        sharePath: recipientPath,
       });
-      const data: SentLetter & { error?: string } = await response.json();
-      if (!response.ok && response.status === 404 && outboxToken.current) {
-        outboxToken.current = null;
-        rememberOutbox(null);
-        throw new Error("旧寄件箱已失效。再点一次「寄出」会创建新寄件箱。");
-      }
-      if (!response.ok) throw new Error(data.error || "寄出失败，请再试一次。");
-      outboxToken.current = data.outboxToken;
-      rememberOutbox(data.outboxToken);
-      setSent(data);
+      setSent({ id, recipientPath, outboxPath });
     } catch (error) {
-      notify(error instanceof Error ? error.message : "暂时无法寄出，请重试。");
+      notify(error instanceof Error ? error.message : "暂时无法生成链接，请重试。");
     } finally { sending.current = false; setBusy(false); }
   }
 
@@ -337,7 +312,7 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
   }
 
   async function copy(path: string) {
-    try { await copyText(baseUrl + path); notify("链接已复制"); }
+    try { await copyText(baseUrl + withBasePath(path)); notify("链接已复制"); }
     catch { notify("可以选中链接并手动复制。"); }
   }
 
@@ -350,8 +325,8 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
         <span className={pack !== "none" ? "current-step" : ""}><span>2</span>封装</span>
       </div>
       {pack === "none"
-        ? <button type="button" className="pill pill-primary editor-next" onClick={startPacking} disabled={readingAudio}>下一步 <ArrowRight size={16} /></button>
-        : <span className="editor-header-end">{sent ? <><Check size={16} /> 已寄出</> : <><Stamp size={16} /> 封装中</>}</span>}
+        ? <button type="button" className="pill pill-primary editor-next" onClick={startPacking}>下一步 <ArrowRight size={16} /></button>
+        : <span className="editor-header-end">{sent ? <><Check size={16} /> 已生成</> : <><Stamp size={16} /> 封装中</>}</span>}
     </header>
     <div className={`editor-workspace ${nextPanel ? "editor-with-panel" : ""}`}>
       <section className="editor-stage" aria-label={pack === "none" ? "实时 3D 贺卡预览" : "3D 信封封装"}>
@@ -441,10 +416,8 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
           <label className="field"><span>生日日期印章 <small>选填</small></span><input type="date" value={draft.birthday} onChange={(event) => { edit({ birthday: event.target.value }); setOpen(true); }} /></label>
         </div>}
         {drawer === "music" && <div className="option-list">
-          <button type="button" className="option-row" disabled={readingAudio} aria-pressed={draft.music.kind === "music-box"} onClick={() => edit({ music: storyMusic })}><Music2 size={21} /><span><strong>八音盒 · 生日快乐</strong><small>轻柔的音乐盒版本</small></span>{draft.music.kind === "music-box" && <Check size={17} />}</button>
-          <button type="button" className="option-row" disabled={readingAudio} aria-pressed={draft.music.kind === "none"} onClick={() => edit({ music: silentMusic })}><Pause size={21} /><span><strong>无背景音乐</strong><small>安静地读一封信</small></span>{draft.music.kind === "none" && <Check size={17} />}</button>
-          <button type="button" className="option-row" disabled={readingAudio} aria-pressed={draft.music.kind === "upload"} onClick={() => fileInput.current?.click()}><Upload size={20} /><span><strong>{draft.music.kind === "upload" ? draft.music.name : readingAudio ? "读取中…" : "上传音频"}</strong><small>MP3 / WAV / M4A · 15 MB 以内</small></span>{draft.music.kind === "upload" && <Check size={17} />}</button>
-          <input ref={fileInput} type="file" accept=".mp3,.wav,.m4a,audio/mpeg,audio/wav,audio/mp4" className="sr-only" tabIndex={-1} onChange={uploadAudio} />
+          <button type="button" className="option-row" aria-pressed={draft.music.kind === "music-box"} onClick={() => edit({ music: storyMusic })}><Music2 size={21} /><span><strong>八音盒 · 生日快乐</strong><small>内置合成旋律，零服务器直放</small></span>{draft.music.kind === "music-box" && <Check size={17} />}</button>
+          <button type="button" className="option-row" aria-pressed={draft.music.kind === "none"} onClick={() => edit({ music: silentMusic })}><Pause size={21} /><span><strong>无背景音乐</strong><small>安静地读一封信</small></span>{draft.music.kind === "none" && <Check size={17} />}</button>
           {draft.music.kind !== "none" && <button type="button" className="pill pill-outline music-preview" onClick={toggleMusic}>{playing ? <Pause size={16} /> : <Play size={16} />}{playing ? "停止试听" : "试听音乐"}</button>}
         </div>}
       </aside>}
@@ -452,16 +425,17 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
       {pack === "sealed" && <aside className="editor-panel send-panel glass" aria-label={sent ? "分享生日信" : "寄出配置"}>
         {sent ? <>
           <div className="send-icon"><PackageCheck size={27} strokeWidth={1.5} /></div>
-          <h2>生日信已寄出</h2>
-          <p>通过这条专属链接，{draft.recipient.trim()} 就能拆开生日信。</p>
+          <h2>生日信已封好</h2>
+          <p>把这条专属链接发给 {draft.recipient.trim()}，点开就能拆火漆读信。</p>
           <div className="share-field">
             <label htmlFor="recipient-link">收件人专属链接</label>
-            <div><input id="recipient-link" readOnly value={baseUrl + sent.recipientPath} onFocus={(event) => event.currentTarget.select()} />
-              <button type="button" className="icon-btn" aria-label="复制收件人链接" title="复制收件人链接" onClick={() => void copy(sent.recipientPath)}><Copy size={16} /></button></div>
+            <div><input id="recipient-link" readOnly value={baseUrl + withBasePath(sent.recipientPath)} onFocus={(event) => event.currentTarget.select()} />
+              <button type="button" className="icon-btn" aria-label="复制收件人链接" title="复制收件人链接" onClick={() => void copy(sent.recipientPath)}><Copy size={16} /></button>
+              <Link className="icon-btn" href={sent.recipientPath} target="_blank" rel="noreferrer" aria-label="打开预览" title="在新标签预览"><ExternalLink size={16} /></Link></div>
           </div>
           <div className="share-field">
-            <label htmlFor="outbox-link">私密寄件箱链接</label>
-            <div><input id="outbox-link" readOnly value={baseUrl + sent.outboxPath} onFocus={(event) => event.currentTarget.select()} />
+            <label htmlFor="outbox-link">本机寄件箱</label>
+            <div><input id="outbox-link" readOnly value={baseUrl + withBasePath(sent.outboxPath)} onFocus={(event) => event.currentTarget.select()} />
               <button type="button" className="icon-btn" aria-label="复制寄件箱链接" title="复制寄件箱链接" onClick={() => void copy(sent.outboxPath)}><Copy size={16} /></button>
               <Link className="icon-btn" href={sent.outboxPath} target="_blank" rel="noreferrer" aria-label="打开寄件箱" title="打开寄件箱"><ExternalLink size={16} /></Link></div>
           </div>
@@ -479,8 +453,8 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
           </fieldset>
           {delivery === "birthday" && <label className="field"><span>收件人的生日</span><input type="date" disabled={busy} min={minimum.slice(0, 10)} value={draft.birthday} onChange={(event) => edit({ birthday: event.target.value })} /></label>}
           {delivery === "custom" && <label className="field"><span>送达日期与时间</span><input type="datetime-local" disabled={busy} min={minimum} value={scheduled} onChange={(event) => setScheduled(event.target.value)} /></label>}
-          {delivery !== "now" && <p className="time-note"><CircleHelp size={15} /> 时间以当前设备时区为准。</p>}
-          <button type="button" className="pill pill-primary send-letter" disabled={busy} onClick={() => void sendLetter()}><Send size={17} />{busy ? "正在寄出…" : "寄出"}</button>
+          {delivery !== "now" && <p className="time-note"><CircleHelp size={15} /> 时间以收件人设备时区为准。</p>}
+          <button type="button" className="pill pill-primary send-letter" disabled={busy} onClick={() => void sendLetter()}><Send size={17} />{busy ? "正在生成链接…" : "生成分享链接"}</button>
         </>}
       </aside>}
     </div>

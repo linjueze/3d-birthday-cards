@@ -7,7 +7,6 @@ export const metadata: Metadata = {
   referrer: "no-referrer",
 };
 
-export default async function LetterPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  return <LetterReader key={id} id={id} />;
+export default function LetterPage() {
+  return <LetterReader />;
 }

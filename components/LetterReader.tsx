@@ -2,19 +2,14 @@
 
 import { AlignLeft, BookHeart, BookOpen, Clock3, LockKeyhole, MailOpen, Rotate3D, Volume2, VolumeX, X } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { defaultDraft, type CardDraft } from "@/lib/cards";
-import type { LetterEnvelope, OpenedLetter } from "@/lib/letters";
+import { decodeSharedLetter } from "@/lib/share-codec";
 import CardScene from "./CardScene";
 import { Brand, Stars, useMusic, useToast } from "./Shared";
 import styles from "./LetterReader.module.css";
 
 type Scene = "sealed" | "breaking" | "opened";
-
-interface EnvelopeClock {
-  envelope: LetterEnvelope;
-  serverOffset: number;
-}
 
 function remainingLabel(seconds: number) {
   const days = Math.floor(seconds / 86400);
@@ -25,7 +20,6 @@ function remainingLabel(seconds: number) {
 }
 
 const deliveryFormat = new Intl.DateTimeFormat("zh-CN", {
-  timeZone: "Asia/Shanghai",
   month: "long",
   day: "numeric",
   hour: "2-digit",
@@ -33,57 +27,64 @@ const deliveryFormat = new Intl.DateTimeFormat("zh-CN", {
   hourCycle: "h23",
 });
 
-export default function LetterReader({ id }: { id: string }) {
-  const [clock, setClock] = useState<EnvelopeClock | null>(null);
-  const [time, setTime] = useState(0);
+function readTokenFromLocation(): string {
+  const search = new URLSearchParams(window.location.search);
+  const fromQuery = search.get("c");
+  if (fromQuery) return fromQuery;
+  const hash = window.location.hash.replace(/^#/, "");
+  if (hash.startsWith("c=")) return decodeURIComponent(hash.slice(2));
+  const hashParams = new URLSearchParams(hash);
+  return hashParams.get("c") || "";
+}
+
+export default function LetterReader() {
+  const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const [deliverAt, setDeliverAt] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const [scene, setScene] = useState<Scene>("sealed");
-  const [requesting, setRequesting] = useState(false);
   const [draft, setDraft] = useState<CardDraft>(() => defaultDraft());
   const [open, setOpen] = useState(false);
   const [burst, setBurst] = useState(false);
   const hasOpenedCard = useRef(false);
-  const openRequest = useRef<AbortController | null>(null);
   const transcript = useRef<HTMLDialogElement>(null);
   const { playing, toggle } = useMusic(draft.music);
-  const { notify, toast } = useToast();
-  const apiPath = useMemo(() => `/api/letters/${encodeURIComponent(id)}`, [id]);
-
-  const refreshEnvelope = useCallback(async (signal?: AbortSignal) => {
-    try {
-      const response = await fetch(apiPath, { cache: "no-store", signal });
-      const result = await response.json() as LetterEnvelope & { error?: string };
-      if (!response.ok) throw new Error(result.error || "这封信暂时无法读取。");
-      const now = Date.now();
-      setTime(now);
-      setClock({ envelope: result, serverOffset: Date.parse(result.serverTime) - now });
-      setLoadError("");
-    } catch (error) {
-      if (!signal?.aborted) {
-        setLoadError(error instanceof Error && error.name !== "TypeError"
-          ? error.message
-          : "暂时连接不上，等一会儿再打开这封信。");
-      }
-    }
-  }, [apiPath]);
+  const { toast } = useToast();
 
   useEffect(() => {
-    const controller = new AbortController();
-    void refreshEnvelope(controller.signal);
-    return () => {
-      controller.abort();
-      openRequest.current?.abort();
-    };
-  }, [refreshEnvelope]);
+    let active = true;
+    async function load() {
+      const token = readTokenFromLocation();
+      if (!token) {
+        if (active) {
+          setLoadError("这条生日信链接不完整，请向寄件人重新索取。");
+          setLoaded(true);
+        }
+        return;
+      }
+      const decoded = await decodeSharedLetter(token);
+      if (!active) return;
+      if (!decoded) {
+        setLoadError("这封生日信链接已损坏或格式无效。");
+        setLoaded(true);
+        return;
+      }
+      setDraft(decoded.draft);
+      setDeliverAt(decoded.deliverAt);
+      setNow(Date.now());
+      setLoadError("");
+      setLoaded(true);
+    }
+    void load();
+    return () => { active = false; };
+  }, []);
 
-  const deliverAt = clock?.envelope.deliverAt;
-  const remaining = deliverAt && clock
-    ? Math.max(0, Math.ceil((Date.parse(deliverAt) - time - clock.serverOffset) / 1000))
-    : 0;
-  const locked = remaining > 0;
+  const remaining = deliverAt ? Math.max(0, Math.ceil((Date.parse(deliverAt) - now) / 1000)) : 0;
+  const locked = loaded && !loadError && remaining > 0;
+
   useEffect(() => {
     if (!locked) return;
-    const tick = () => setTime(Date.now());
+    const tick = () => setNow(Date.now());
     const interval = window.setInterval(tick, 250);
     document.addEventListener("visibilitychange", tick);
     return () => {
@@ -92,30 +93,9 @@ export default function LetterReader({ id }: { id: string }) {
     };
   }, [locked]);
 
-  async function breakSeal() {
-    if (!clock || locked || scene !== "sealed" || requesting || openRequest.current) return;
-    const controller = new AbortController();
-    openRequest.current = controller;
-    setRequesting(true);
-    try {
-      const response = await fetch(`${apiPath}/open`, { method: "POST", signal: controller.signal });
-      const result = await response.json() as OpenedLetter & { error?: string };
-      if (!response.ok) {
-        if (response.status === 423) void refreshEnvelope(controller.signal);
-        throw new Error(result.error || "这封信暂时无法拆开。");
-      }
-      setDraft(result.draft);
-      setScene("breaking");
-    } catch (error) {
-      if (!controller.signal.aborted) {
-        notify(error instanceof Error && error.name !== "TypeError"
-          ? error.message
-          : "暂时连接不上，等一会儿再拆信。");
-      }
-    } finally {
-      if (openRequest.current === controller) openRequest.current = null;
-      if (!controller.signal.aborted) setRequesting(false);
-    }
+  function breakSeal() {
+    if (!loaded || loadError || locked || scene !== "sealed") return;
+    setScene("breaking");
   }
 
   const extractionComplete = useCallback(() => {
@@ -137,9 +117,9 @@ export default function LetterReader({ id }: { id: string }) {
     }
   }
 
-  const recipient = clock?.envelope.recipient;
-  const canBreak = scene === "sealed" && !locked && !requesting;
-  const stageTitle = !clock ? "生日信" : scene === "opened" ? `Dear ${recipient}` : `给 ${recipient} 的生日信`;
+  const recipient = draft.recipient;
+  const canBreak = loaded && !loadError && scene === "sealed" && !locked;
+  const stageTitle = !loaded ? "生日信" : scene === "opened" ? `Dear ${recipient}` : `给 ${recipient} 的生日信`;
 
   return (
     <main className={styles.page}>
@@ -148,13 +128,12 @@ export default function LetterReader({ id }: { id: string }) {
         <span className={styles.headerNote}><MailOpen size={15} aria-hidden="true" /> 一封生日信</span>
       </header>
 
-      {loadError && !clock ? (
+      {loaded && loadError ? (
         <section className={styles.unavailable} aria-labelledby="letter-title">
           <span className={styles.emptyIcon}><MailOpen size={29} strokeWidth={1.35} aria-hidden="true" /></span>
-          <h1 id="letter-title">这封信暂时找不到</h1>
+          <h1 id="letter-title">这封信暂时打不开</h1>
           <p>{loadError}</p>
           <div className={styles.controls}>
-            <button className="pill pill-outline" onClick={() => { setLoadError(""); void refreshEnvelope(); }}>重新读取</button>
             <Link className="pill pill-primary" href="/">回到画廊</Link>
           </div>
         </section>
@@ -179,7 +158,7 @@ export default function LetterReader({ id }: { id: string }) {
               onToggle={toggleCard}
               onReady={extractionComplete}
             />
-            {clock && scene === "sealed" && !locked && (
+            {loaded && scene === "sealed" && !locked && (
               <button
                 type="button"
                 className={styles.waxTarget}
@@ -191,8 +170,8 @@ export default function LetterReader({ id }: { id: string }) {
           </div>
 
           <div className={styles.actions}>
-            {!clock ? (
-              <p className={styles.hint} role="status">正在找到你的信…</p>
+            {!loaded ? (
+              <p className={styles.hint} role="status">正在展开你的生日信…</p>
             ) : locked ? (
               <div className={styles.countdown} aria-label="距离送达">
                 <span className={styles.lockIcon}><LockKeyhole size={17} aria-hidden="true" /></span>
@@ -204,7 +183,7 @@ export default function LetterReader({ id }: { id: string }) {
             ) : scene === "sealed" ? (
               <button type="button" className={`pill pill-primary ${styles.openButton}`} disabled={!canBreak} onClick={breakSeal}>
                 <MailOpen size={17} aria-hidden="true" />
-                {requesting ? "正在拆信…" : "点一下火漆，拆开这封生日信"}
+                点一下火漆，拆开这封生日信
               </button>
             ) : scene === "breaking" ? (
               <p className={styles.hint} role="status"><Clock3 size={15} aria-hidden="true" /> 正在展开生日信…</p>
@@ -227,7 +206,7 @@ export default function LetterReader({ id }: { id: string }) {
                     </button>
                   )}
                 </div>
-                <p className={styles.hint}><Rotate3D size={15} aria-hidden="true" /> 拖动贺卡，看看纸页的光影</p>
+                <p className={styles.hint}><Rotate3D size={15} aria-hidden="true" /> 拖动旋转，滚轮放大看看纸页光影</p>
               </div>
             )}
           </div>

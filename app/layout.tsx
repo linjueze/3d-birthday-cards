@@ -12,7 +12,6 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: { default: "Birthday Cards · 生日信", template: "%s · Birthday Cards" },
   description: "挑一张立体纸艺贺卡，写下祝福，盖上火漆，把心意寄给重要的人。",
-  icons: { icon: "/icon.svg" },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

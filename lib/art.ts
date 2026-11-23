@@ -2,6 +2,7 @@ import type { CardDraft, FontId, PaperId, TemplateSlug } from "./cards";
 import { coverBase, coverFoil, coverIllustration, coverPalette, drawPaperGrain } from "./art-covers";
 import { ART_HEIGHT, ART_WIDTH, drawPath, ellipse, gold, gradient, randomFrom, spacedText, star, surface } from "./art-ornaments";
 import { STICKER_BASE_SIZE, stickerArt } from "./art-stickers";
+import { withBasePath } from "./share-codec";
 
 export { STICKER_BASE_SIZE, stickerArt };
 
@@ -20,7 +21,7 @@ export interface CoverMaterialManifest {
 }
 
 function coverMaps(slug: TemplateSlug): Partial<Record<keyof CoverArt, string>> {
-  const root = `/assets/cards/${slug}`;
+  const root = withBasePath(`/assets/cards/${slug}`);
   return {
     base: `${root}/base.webp`,
     illustration: `${root}/relief.webp`,

@@ -7,7 +7,6 @@ export const metadata: Metadata = {
   referrer: "no-referrer",
 };
 
-export default async function OutboxPage({ params }: { params: Promise<{ token: string }> }) {
-  const { token } = await params;
-  return <OutboxView key={token} token={token} />;
+export default function OutboxPage() {
+  return <OutboxView />;
 }

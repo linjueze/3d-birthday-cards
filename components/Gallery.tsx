@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowDownRight, ArrowRight, BookOpen, ChevronLeft, ChevronRight, Mouse, Send, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import CardScene from "@/components/CardScene";
-import { Brand, savedOutbox, useToast } from "@/components/Shared";
+import { Brand, useToast } from "@/components/Shared";
 import { CardThumb } from "@/components/Thumbnails";
 import { loadCoverArt } from "@/lib/art";
 import { defaultDraft, TEMPLATES, type TemplateSlug } from "@/lib/cards";
@@ -12,10 +12,8 @@ import { defaultDraft, TEMPLATES, type TemplateSlug } from "@/lib/cards";
 export default function Gallery() {
   const [slug, setSlug] = useState<TemplateSlug>(TEMPLATES[0].slug);
   const [open, setOpen] = useState(false);
-  const [token, setToken] = useState<string | null>(null);
-  const { notify, toast } = useToast();
+  const { toast } = useToast();
   useEffect(() => {
-    setToken(savedOutbox());
     for (const item of TEMPLATES) void loadCoverArt(item.slug);
   }, []);
   const selected = TEMPLATES.findIndex((theme) => theme.slug === slug);
@@ -36,9 +34,7 @@ export default function Gallery() {
   return <main className="gallery-shell">
     <header className="site-header gallery-header">
       <Brand />
-      {token
-        ? <Link className="pill pill-outline top-outbox" href={`/outbox/${token}`}><Send size={15} />寄件箱</Link>
-        : <button type="button" className="pill pill-outline top-outbox" onClick={() => notify("寄出第一封生日信后，寄件箱就会出现在这里。")}><Send size={15} />寄件箱</button>}
+      <Link className="pill pill-outline top-outbox" href="/outbox"><Send size={15} />寄件箱</Link>
     </header>
     <section className="gallery-main" aria-labelledby="gallery-title">
       <div className="hero-copy">

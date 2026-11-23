@@ -1,17 +1,14 @@
 import type { NextConfig } from "next";
 
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
 const config: NextConfig = {
+  output: "export",
+  trailingSlash: true,
+  basePath: basePath || undefined,
+  images: { unoptimized: true },
   devIndicators: false,
   poweredByHeader: false,
-  async headers() {
-    return [{
-      source: "/:path*",
-      headers: [
-        { key: "Referrer-Policy", value: "no-referrer" },
-        { key: "X-Content-Type-Options", value: "nosniff" },
-      ],
-    }];
-  },
 };
 
 export default config;

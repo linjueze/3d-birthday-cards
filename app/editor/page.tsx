@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Editor from "@/components/Editor";
-import { isTemplateSlug } from "@/lib/cards";
 
 export const metadata: Metadata = { title: "制作贺卡" };
 
-export default async function EditorPage({ searchParams }: { searchParams: Promise<{ template?: string }> }) {
-  const { template } = await searchParams;
-  return <Editor initialTemplate={isTemplateSlug(template) ? template : undefined} />;
+export default function EditorPage() {
+  return (
+    <Suspense fallback={null}>
+      <Editor />
+    </Suspense>
+  );
 }

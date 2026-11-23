@@ -1,11 +1,11 @@
 "use client";
 
-import { CakeSlice, Copy, Flower2, Gift, LockKeyhole, Mail, MoonStar, Plus } from "lucide-react";
+import { CakeSlice, Copy, ExternalLink, Flower2, Gift, LockKeyhole, Mail, MoonStar, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { TEMPLATES } from "@/lib/cards";
-import type { OutboxLetter } from "@/lib/letters";
-import { Brand, copyText, rememberOutbox, useToast } from "./Shared";
+import { deleteLocalOutboxItem, loadLocalOutbox, withBasePath, type LocalOutboxItem } from "@/lib/share-codec";
+import { Brand, copyText, useToast } from "./Shared";
 import styles from "./OutboxView.module.css";
 
 const templateIcons = {
@@ -16,7 +16,6 @@ const templateIcons = {
 };
 
 const timestamp = new Intl.DateTimeFormat("en-US", {
-  timeZone: "Asia/Shanghai",
   month: "numeric",
   day: "numeric",
   hour: "2-digit",
@@ -24,75 +23,46 @@ const timestamp = new Intl.DateTimeFormat("en-US", {
   hourCycle: "h23",
 });
 
-const preciseTimestamp = new Intl.DateTimeFormat("zh-CN", {
-  timeZone: "Asia/Shanghai",
-  dateStyle: "medium",
-  timeStyle: "long",
-});
-
 function formatTime(date: string) {
   const parts = Object.fromEntries(timestamp.formatToParts(new Date(date)).map(({ type, value }) => [type, value]));
   return `${parts.month}/${parts.day} ${parts.hour}:${parts.minute}`;
 }
 
-export default function OutboxView({ token }: { token: string }) {
-  const [letters, setLetters] = useState<OutboxLetter[] | null>(null);
-  const [error, setError] = useState("");
+export default function OutboxView() {
+  const [letters, setLetters] = useState<LocalOutboxItem[] | null>(null);
   const { notify, toast } = useToast();
-  const apiPath = `/api/outbox/${encodeURIComponent(token)}`;
-
-  const refresh = useCallback(async (signal?: AbortSignal) => {
-    try {
-      const response = await fetch(apiPath, { cache: "no-store", signal });
-      const data = await response.json() as { letters?: OutboxLetter[]; error?: string };
-      if (!response.ok || !data.letters) throw new Error(data.error || "寄件箱暂时无法查看。");
-      if (!signal?.aborted) {
-        setLetters(data.letters);
-        setError("");
-      }
-    } catch (failure) {
-      if (!signal?.aborted) {
-        setError(failure instanceof Error && failure.name !== "TypeError"
-          ? failure.message
-          : "暂时连接不上，稍后会自动重试。");
-      }
-    }
-  }, [apiPath]);
 
   useEffect(() => {
-    let controller: AbortController | null = null;
-    function sync() {
-      if (document.visibilityState === "hidden") return;
-      controller?.abort();
-      controller = new AbortController();
-      void refresh(controller.signal);
-    }
+    const sync = () => setLetters(loadLocalOutbox());
     sync();
-    const interval = window.setInterval(sync, 5000);
     window.addEventListener("focus", sync);
-    document.addEventListener("visibilitychange", sync);
+    window.addEventListener("storage", sync);
     return () => {
-      controller?.abort();
-      window.clearInterval(interval);
       window.removeEventListener("focus", sync);
-      document.removeEventListener("visibilitychange", sync);
+      window.removeEventListener("storage", sync);
     };
-  }, [refresh]);
+  }, []);
 
-  async function copyLetter(id: string) {
+  async function copyLetter(sharePath: string) {
     try {
-      await copyText(new URL(`/letter/${encodeURIComponent(id)}`, window.location.href).href);
+      const fullUrl = new URL(withBasePath(sharePath), window.location.origin).href;
+      await copyText(fullUrl);
       notify("收件链接已复制");
     } catch {
       notify("暂时无法复制链接，请再试一次");
     }
   }
 
+  function removeLetter(id: string) {
+    setLetters(deleteLocalOutboxItem(id));
+    notify("已从本机寄件箱移除");
+  }
+
   return (
     <main className={styles.page}>
       <header className={`site-header ${styles.header}`}>
         <Brand />
-        <Link className={`pill pill-primary ${styles.newLetter}`} href="/editor" onClick={() => { if (letters) rememberOutbox(token); }}>
+        <Link className={`pill pill-primary ${styles.newLetter}`} href="/editor">
           <Plus size={17} aria-hidden="true" /> 再写一封
         </Link>
       </header>
@@ -101,14 +71,15 @@ export default function OutboxView({ token }: { token: string }) {
         <header className={styles.intro}>
           <span className={styles.emblem}><Mail size={26} strokeWidth={1.45} aria-hidden="true" /></span>
           <h1 id="outbox-title">寄件箱</h1>
-          <p><LockKeyhole size={14} aria-hidden="true" /> 只有知道这个链接的人能看到这里。</p>
+          <p><LockKeyhole size={14} aria-hidden="true" /> 纯静态版记录保存在当前浏览器，可随时复制分享链接。</p>
         </header>
 
         {letters?.length ? (
-          <ul className={styles.list} aria-label="已寄出的生日信">
+          <ul className={styles.list} aria-label="已生成的生日信">
             {letters.map((letter) => {
               const template = TEMPLATES.find((item) => item.slug === letter.template);
               const Icon = templateIcons[letter.template];
+              const scheduled = Boolean(letter.deliverAt && Date.parse(letter.deliverAt) > Date.now());
               return (
                 <li key={letter.id} className={styles.row}>
                   <span className={`${styles.cover} ${styles[letter.template]}`} aria-hidden="true"><Icon size={18} strokeWidth={1.5} /></span>
@@ -117,34 +88,37 @@ export default function OutboxView({ token }: { token: string }) {
                     <p className={styles.detail}>
                       <span>{template?.name}</span>
                       <span aria-hidden="true">·</span>
-                      <time dateTime={letter.createdAt}>{formatTime(letter.createdAt)} 寄出</time>
+                      <time dateTime={letter.createdAt}>{formatTime(letter.createdAt)} 生成</time>
                     </p>
                   </div>
                   <div className={styles.openState}>
-                    <span className={`${styles.status} ${letter.openedAt ? styles.opened : ""}`}>
-                      <span aria-hidden="true" />{letter.openedAt ? "已拆封" : "未拆封"}
+                    <span className={`${styles.status} ${scheduled ? "" : styles.opened}`}>
+                      <span aria-hidden="true" />{scheduled ? "定时开启" : "已可拆信"}
                     </span>
-                    {letter.openedAt && (
-                      <time dateTime={letter.openedAt} title={preciseTimestamp.format(new Date(letter.openedAt))}>
-                        {formatTime(letter.openedAt)} 拆开
-                      </time>
+                    {letter.deliverAt && (
+                      <time dateTime={letter.deliverAt}>{formatTime(letter.deliverAt)} 开启</time>
                     )}
                   </div>
-                  <button type="button" className={`pill pill-outline ${styles.copy}`} aria-label={`复制链接，寄给 ${letter.recipient}`} onClick={() => { void copyLetter(letter.id); }}>
-                    <Copy size={15} aria-hidden="true" /><span>复制链接</span>
-                  </button>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <button type="button" className={`pill pill-outline ${styles.copy}`} aria-label={`复制链接，寄给 ${letter.recipient}`} onClick={() => { void copyLetter(letter.sharePath); }}>
+                      <Copy size={15} aria-hidden="true" /><span>复制链接</span>
+                    </button>
+                    <Link className="icon-btn" href={letter.sharePath} target="_blank" rel="noreferrer" aria-label={`打开预览，寄给 ${letter.recipient}`} title="打开预览">
+                      <ExternalLink size={16} />
+                    </Link>
+                    <button type="button" className="icon-btn" aria-label={`删除记录，寄给 ${letter.recipient}`} title="从本机移除" onClick={() => removeLetter(letter.id)}>
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 </li>
               );
             })}
           </ul>
         ) : (
           <div className={styles.empty} role="status">
-            <p>{error || (letters ? "寄件箱里还没有寄出的生日信。" : "正在读取寄件箱…")}</p>
-            {error && <button type="button" className="pill pill-outline" onClick={() => { setError(""); void refresh(); }}>重新读取</button>}
+            <p>{letters ? "本机寄件箱里还没有生成过的生日信。" : "正在读取寄件箱…"}</p>
           </div>
         )}
-
-        {letters?.length && error ? <p className={styles.refreshError} role="status">{error}</p> : null}
       </section>
       {toast}
     </main>
