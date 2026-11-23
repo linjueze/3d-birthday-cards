@@ -1,0 +1,228 @@
+.birthday-scene {
+  container-type: size;
+  isolation: isolate;
+}
+.birthday-scene:focus-visible {
+  outline: 1px dashed #9a784d;
+  outline-offset: -3px;
+  border-radius: .75rem;
+}
+.scene-fallback {
+  --page-width: min(55.45cqh, 76.4cqw);
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  perspective: 70rem;
+}
+.scene-fallback-side,
+.scene-fallback-book {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--page-width);
+  aspect-ratio: 3 / 4;
+}
+.scene-fallback-side canvas,
+.scene-fallback-inside canvas,
+.scene-fallback-front canvas,
+.scene-fallback-left canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 2px;
+}
+.scene-fallback-side {
+  transform: translate(-50%, -50%) translate(calc(var(--slot-x) * var(--page-width) * var(--side-spread, 1) / 3.12), calc(var(--slot-y) * var(--page-width) / 3.12))
+    rotate(var(--slot-roll)) rotateY(var(--slot-yaw)) scale(var(--slot-scale));
+  box-shadow: 2px 4px 0 #9f7e6f24, 7px 22px 34px #52332230, 0 4px 13px #4c342828;
+  opacity: 1;
+  transition: transform .6s ease, opacity .45s ease;
+}
+.scene-fallback-side[data-open="true"] {
+  opacity: 0;
+  pointer-events: none;
+}
+.scene-fallback-book {
+  z-index: 230;
+  perspective: 64rem;
+  transform: translate(-50%, -50%) rotate(-1.4deg) rotateX(var(--fallback-x, 3deg)) rotateY(var(--fallback-y, -5deg));
+  transform-style: preserve-3d;
+  box-shadow: 1px 2px 0 #a9836139, 8px 18px 27px #57382933, 0 9px 34px #5238292e;
+  transition: transform .66s cubic-bezier(.18,.67,.22,.98), width .62s ease-out;
+}
+.scene-fallback-book[data-open="true"] {
+  --page-width: min(55.45cqh, 46cqw);
+  transform: translate(0, -50%) rotate(-.3deg) rotateX(var(--fallback-x, 2deg)) rotateY(var(--fallback-y, 0deg));
+}
+.scene-fallback-inside,
+.scene-fallback-cover,
+.scene-fallback-front,
+.scene-fallback-left {
+  position: absolute;
+  inset: 0;
+  border-radius: 2px;
+}
+.scene-fallback-inside,
+.scene-fallback-left {
+  background: #fff1d9;
+}
+.scene-fallback-cover {
+  transform-origin: left;
+  transform-style: preserve-3d;
+  transition: transform .78s cubic-bezier(.2,.76,.25,1);
+}
+.scene-fallback-book[data-open="true"] .scene-fallback-cover {
+  transform: rotateY(-178deg);
+}
+.scene-fallback-front,
+.scene-fallback-left {
+  backface-visibility: hidden;
+}
+.scene-fallback-left {
+  transform: rotateY(180deg);
+  box-shadow: inset -3px 0 7px #70472235;
+}
+.scene-fallback-inside .scene-fallback-sticker {
+  position: absolute;
+  height: auto;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  cursor: move;
+}
+.scene-fallback-sticker.is-selected {
+  outline: 1px dashed #a58045;
+  outline-offset: 1px;
+}
+.scene-fallback-envelope {
+  --envelope-width: min(83.5cqh, 91cqw);
+  position: absolute;
+  z-index: 231;
+  width: var(--envelope-width);
+  aspect-ratio: 4.70 / 3.02;
+  border-radius: .4rem;
+  translate: 0 0;
+  transform-style: preserve-3d;
+  transform: rotate(-.8deg);
+  perspective: 44rem;
+  filter: drop-shadow(0 20px 18px #5e3a2729);
+}
+.scene-envelope-back,
+.scene-envelope-pocket,
+.scene-envelope-flap {
+  position: absolute;
+  inset: 0;
+}
+.scene-envelope-back {
+  background: #f9e6c8;
+  border-radius: .4rem;
+  padding: .2rem;
+  overflow: hidden;
+}
+.scene-envelope-back canvas,
+.scene-envelope-flap canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.scene-envelope-pocket {
+  z-index: 2;
+  border-radius: .4rem;
+  clip-path: polygon(0 0, 50% 62%, 100% 0, 100% 100%, 0 100%);
+  background:
+    linear-gradient(149deg, #e9d3b1 0 48%, #caa982 49%, transparent 50%) top left / 50% 100% no-repeat,
+    linear-gradient(211deg, #f2dfc2 0 48%, #d4b18b 49%, transparent 50%) top right / 50% 100% no-repeat,
+    radial-gradient(ellipse at 50% 32%, #fff3d9, #e6cba7);
+}
+.scene-envelope-flap {
+  z-index: 3;
+  height: 60%;
+  transform-origin: center top;
+  background: linear-gradient(115deg, #f8e8ca, #f7e2bd 49%, #eed6ae);
+  clip-path: polygon(0 0, 100% 0, 51% 100%, 49% 100%);
+}
+.scene-envelope-flap canvas { opacity: 0; }
+.scene-envelope-stamp,
+.scene-envelope-molten {
+  --wax-size: calc(var(--envelope-width) * .18);
+  position: absolute;
+  display: grid;
+  place-items: center;
+  z-index: 4;
+  left: 50%;
+  top: 56%;
+  width: var(--wax-size);
+  aspect-ratio: 1;
+  translate: -50% -50%;
+}
+.scene-envelope-stamp span,
+.scene-envelope-molten {
+  border-radius: 45% 53% 47% 50%;
+  background: radial-gradient(circle at 32% 25%, #be6278, #942c46 62%, #72223b);
+  box-shadow: inset 0 -.4rem .6rem #5e182a97, inset 0 .13rem .22rem #ffeab66a, 0 .22rem .35rem #63342042;
+}
+.scene-envelope-stamp span {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #db8396;
+  font-size: calc(var(--wax-size) * .56);
+  text-shadow: 0 1px 1px #662037;
+}
+.scene-envelope-stamp span::before {
+  content: "";
+  position: absolute;
+  inset: 16%;
+  border: 1px solid #e895a698;
+  outline: 1px solid #61182b5e;
+  outline-offset: -4px;
+  border-radius: 50%;
+}
+.scene-envelope-stamp span:first-child { clip-path: polygon(0 0, 50% 0, 49% 23%, 53% 43%, 47% 64%, 51% 83%, 50% 100%, 0 100%); }
+.scene-envelope-stamp span:last-child { clip-path: polygon(50% 0, 100% 0, 100% 100%, 50% 100%, 51% 83%, 47% 64%, 53% 43%, 49% 23%); }
+.scene-envelope-molten {
+  opacity: calc(var(--seal-progress) * 4);
+  transform: scale(calc(.18 + var(--seal-progress) * .82));
+}
+.scene-fallback[data-phase="packing"] .scene-fallback-envelope { animation: scene-envelope-enter 2.5s both; }
+.scene-fallback[data-phase="packing"] .scene-envelope-flap { animation: scene-envelope-fold 2.5s both; }
+.scene-fallback[data-phase="packing"] .scene-envelope-flap canvas { animation: scene-liner-fold 2.5s both; }
+.scene-fallback[data-phase="packing"] .scene-fallback-book { animation: scene-book-insert 2.5s both; }
+.scene-fallback[data-phase="breaking"] .scene-fallback-envelope { animation: scene-envelope-lower 2.22s both; }
+.scene-fallback[data-phase="breaking"] .scene-envelope-flap { animation: scene-envelope-lift 2.22s both; }
+.scene-fallback[data-phase="breaking"] .scene-envelope-flap canvas { animation: scene-liner-lift 2.22s both; }
+.scene-fallback[data-phase="breaking"] .scene-fallback-book { animation: scene-book-extract 2.22s both; }
+.scene-fallback[data-phase="breaking"] .scene-envelope-stamp span:first-child { animation: scene-wax-left .78s both; }
+.scene-fallback[data-phase="breaking"] .scene-envelope-stamp span:last-child { animation: scene-wax-right .78s both; }
+.scene-fallback[data-phase="sealed"] .scene-envelope-stamp { animation: scene-stamp .46s ease-out both; }
+
+@keyframes scene-stamp { 0% { scale: .8; } 52% { scale: 1.12; } 100% { scale: 1; } }
+@keyframes scene-envelope-enter { 0% { translate: 0 55%; opacity: 0; } 31%, 73% { translate: 0 6%; opacity: 1; } 100% { translate: 0 0; opacity: 1; } }
+@keyframes scene-envelope-fold { 0% { transform: rotateX(0); } 27%, 76% { transform: rotateX(170deg); } 100% { transform: rotateX(0); } }
+@keyframes scene-liner-fold { 12%, 90% { opacity: 0; } 25%, 80% { opacity: 1; } }
+@keyframes scene-book-insert {
+  0% { z-index: 232; }
+  37% { z-index: 232; transform: translate(-50%, -101%) rotate(90deg) scale(.86); }
+  61% { opacity: 1; }
+  74% { opacity: 0; z-index: 232; transform: translate(-50%, -50%) rotate(90deg) scale(.83); }
+  100% { opacity: 0; transform: translate(-50%, -50%) rotate(90deg) scale(.83); }
+}
+@keyframes scene-envelope-lower { 0%, 36% { translate: 0 0; } 100% { translate: 0 115%; opacity: 0; } }
+@keyframes scene-envelope-lift { 0%, 15% { transform: rotateX(0); } 49%, 100% { transform: rotateX(170deg); } }
+@keyframes scene-liner-lift { 0%, 21% { opacity: 0; } 45%, 100% { opacity: 1; } }
+@keyframes scene-wax-left { 0%, 18% { transform: translate(0) rotate(0); } 100% { transform: translate(-58%, 38%) rotate(-43deg); opacity: 0; } }
+@keyframes scene-wax-right { 0%, 18% { transform: translate(0) rotate(0); } 100% { transform: translate(63%, 54%) rotate(39deg); opacity: 0; } }
+@keyframes scene-book-extract {
+  0%, 25% { opacity: 0; z-index: 232; transform: translate(-50%, -50%) rotate(90deg) scale(.83); }
+  58% { opacity: 1; z-index: 232; transform: translate(-50%, -93%) rotate(90deg) scale(.87); }
+  100% { opacity: 1; z-index: 232; transform: translate(-50%, -50%) rotate(-1.4deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scene-fallback *,
+  .scene-fallback *::before { animation-duration: .1s !important; transition-duration: .1s !important; }
+}
+@container (max-width: 500px) {
+  .scene-fallback { --side-spread: .86; }
+}
