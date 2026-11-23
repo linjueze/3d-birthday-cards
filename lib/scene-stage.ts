@@ -21,16 +21,19 @@ export type SceneProps = {
   className?: string;
 };
 
-export const FALLBACK_TIMINGS = { packing: 2500, breaking: 2220 } as const;
+export const FALLBACK_TIMINGS = { packing: 2600, breaking: 2400 } as const;
+export const MIN_ZOOM = 1;
+export const MAX_ZOOM = 2.4;
 
 type Book = ReturnType<typeof buildBook>;
 type Slot = { x: number; z: number; y: number; pitch: number; yaw: number; roll: number; scale: number };
 
+// Orthographic Z separation guarantees the active card never clips rear cards even at max yaw, mid-flip, or during template switches.
 export const GALLERY_SLOTS: readonly Slot[] = [
-  { x: .04, z: .24, y: .04, pitch: .057, yaw: -.078, roll: -.025, scale: 1 },
-  { x: -1.65, z: -.67, y: .055, pitch: .052, yaw: .31, roll: .164, scale: .83 },
-  { x: 1.72, z: -.52, y: -.065, pitch: .063, yaw: -.39, roll: -.19, scale: .84 },
-  { x: -2.71, z: -1.39, y: -.155, pitch: .085, yaw: .54, roll: .303, scale: .724 },
+  { x: .04, z: 2.8, y: .04, pitch: .057, yaw: -.078, roll: -.025, scale: 1 },
+  { x: -1.65, z: -1.6, y: .055, pitch: .052, yaw: .31, roll: .164, scale: .83 },
+  { x: 1.72, z: -2.8, y: -.065, pitch: .063, yaw: -.39, roll: -.19, scale: .84 },
+  { x: -2.71, z: -4.2, y: -.155, pitch: .085, yaw: .54, roll: .303, scale: .724 },
 ];
 
 export function galleryOffset(slug: TemplateSlug, selected: TemplateSlug) {
@@ -74,6 +77,7 @@ export function createStage(
   host: HTMLDivElement,
   read: () => SceneProps,
   available: (available: boolean) => void,
+  onZoomChange?: (zoom: number) => void,
 ) {
   const canvas = document.createElement("canvas");
   const options = { alpha: true, antialias: true, powerPreference: "high-performance" as const };
@@ -91,7 +95,7 @@ export function createStage(
   }
 
   renderer.setClearColor(0x000000, 0);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.6));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.domElement.style.cssText = "display:block;width:100%;height:100%;pointer-events:none";
   renderer.domElement.setAttribute("aria-hidden", "true");
@@ -104,7 +108,7 @@ export function createStage(
   const envelope = buildEnvelope(allMaps);
   const envShadow = createShadow(.27);
   envShadow.renderOrder = -2;
-  envShadow.position.z = -2.25;
+  envShadow.position.z = -5.0;
   scene.add(envelope.root, envShadow);
   lights(scene);
 
@@ -130,6 +134,12 @@ export function createStage(
   let requestedYaw = 0;
   let pitch = 0;
   let yaw = 0;
+  let requestedZoom = 1;
+  let zoom = 1;
+  let requestedPanX = 0;
+  let requestedPanY = 0;
+  let panX = 0;
+  let panY = 0;
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
@@ -140,14 +150,28 @@ export function createStage(
     renderUntil = Math.max(renderUntil, performance.now() + duration);
   }
 
+  function clampPan(zLevel = requestedZoom) {
+    if (!width || !height || !cameraSize || zLevel <= 1.001) {
+      requestedPanX = 0;
+      requestedPanY = 0;
+      return;
+    }
+    const aspect = width / height;
+    const factor = 1 - 1 / zLevel;
+    const maxX = cameraSize * aspect * .45 * factor;
+    const maxY = cameraSize * .45 * factor;
+    requestedPanX = THREE.MathUtils.clamp(requestedPanX, -maxX, maxX);
+    requestedPanY = THREE.MathUtils.clamp(requestedPanY, -maxY, maxY);
+  }
+
   function createBook(slug: TemplateSlug, draft: CardDraft) {
     let entry = books.get(slug);
     if (!entry) {
       const book = buildBook(slug, draft, allMaps, wake);
       const shadow = createShadow(.38);
       const contact = createShadow(.23);
-      shadow.position.z = -2.09;
-      contact.position.z = -2.09;
+      shadow.position.z = -5.2;
+      contact.position.z = -5.2;
       shadow.renderOrder = contact.renderOrder = -3;
       entry = { book, shadow, contact };
       books.set(slug, entry);
@@ -177,7 +201,7 @@ export function createStage(
     if (!width || !height) return;
     renderer.setSize(width, height, false);
     if (!cameraSize) cameraSize = resolution(width / height);
-    updateProjection(width / height, cameraSize);
+    updateProjection(width / height, cameraSize / zoom);
     wake();
   }
 
@@ -271,15 +295,27 @@ export function createStage(
       activeSlug = draft.template;
       requestedPitch = 0;
       requestedYaw = 0;
+      if (requestedZoom !== 1 || requestedPanX !== 0 || requestedPanY !== 0) {
+        requestedZoom = 1;
+        requestedPanX = 0;
+        requestedPanY = 0;
+        onZoomChange?.(1);
+      }
     }
 
     if (activeEnvelope !== envelopePhase) {
       activeEnvelope = envelopePhase;
       animationTime = now;
       completed = false;
-      if (envelopePhase === "sealed" || envelopePhase === "packing") {
+      if (envelopePhase !== "none" && envelopePhase !== "opened") {
         requestedPitch = 0;
         requestedYaw = 0;
+        if (requestedZoom !== 1 || requestedPanX !== 0 || requestedPanY !== 0) {
+          requestedZoom = 1;
+          requestedPanX = 0;
+          requestedPanY = 0;
+          onZoomChange?.(1);
+        }
       }
     }
 
@@ -288,10 +324,15 @@ export function createStage(
     const showEnvelope = envelopePhase !== "none" && envelopePhase !== "opened";
     const packaging = envelopePhase === "packing";
     const breaking = envelopePhase === "breaking";
-    const displayBook = !showEnvelope || packaging && time < 2.02 || breaking && time > .59;
+    // During packing keep the tucked card visible inside the V-cutout until the closing flap covers it;
+    // during breaking reveal the card inside the pocket as soon as the flap starts lifting.
+    const displayBook = !showEnvelope || (packaging && time < 2.28) || (breaking && time > .45);
     open = reducedMotion ? Number(Boolean(props.open) && !showEnvelope) : damp(open, Number(Boolean(props.open) && !showEnvelope), 8.7, dt);
     pitch = damp(pitch, requestedPitch, 14, dt);
     yaw = damp(yaw, requestedYaw, 14, dt);
+    zoom = reducedMotion ? requestedZoom : damp(zoom, requestedZoom, 12, dt);
+    panX = reducedMotion ? requestedPanX : damp(panX, requestedPanX, 12, dt);
+    panY = reducedMotion ? requestedPanY : damp(panY, requestedPanY, 12, dt);
 
     const selected = createBook(activeSlug, draft);
     if (activeDraft !== draft || activeSticker !== selectedSticker) {
@@ -306,18 +347,26 @@ export function createStage(
 
     if (width && height) {
       const aspect = width / height;
-      // During the exchange, the scene accommodates the upright open liner on the same stage.
+      // During the exchange, reserve vertical headroom for the card rising cleanly clear of the envelope mouth.
       const wideBook = (CARD_WIDTH * 2 + .56) / aspect;
       const envelopeView = (ENVELOPE_WIDTH + .44) / aspect;
       const baseSize = mobile && mode !== "gallery" ? Math.max(5.40, 3.85 / aspect) : resolution(aspect);
       const openFit = Math.max(baseSize, wideBook);
-      const envFit = showEnvelope ? Math.max(baseSize, envelopeView, breaking || packaging ? 6.15 : 0) : baseSize;
+      const envFit = showEnvelope ? Math.max(baseSize, envelopeView, breaking || packaging ? 7.25 : 0) : baseSize;
       const desiredSize = showEnvelope ? envFit : mix(baseSize, openFit, open);
       cameraSize = !cameraSize || initial || reducedMotion ? desiredSize : damp(cameraSize, desiredSize, 10, dt);
-      updateProjection(aspect, cameraSize);
+      clampPan(requestedZoom);
+      updateProjection(aspect, cameraSize / zoom);
+      camera.position.set(panX, panY, 14);
     }
 
     const drift = reducedMotion ? 0 : Math.sin(elapsed * 1.18) * .021;
+    const envSlotY = -.76;
+    const cardAboveY = 2.26;
+    const cardPocketZ = .08;
+    const packEnvY = -3.1 * (1 - span(time, 0, .64)) + envSlotY * (1 - span(time, 1.88, 2.55));
+    const breakEnvY = envSlotY * span(time, .24, .78) - 3.8 * span(time, 1.56, 2.34);
+
     for (const [slug, entry] of books) {
       const active = slug === activeSlug;
       const { book, shadow, contact } = entry;
@@ -330,31 +379,37 @@ export function createStage(
         const mobileX = mobile ? .86 : 1;
         const direction = Math.sign(sideSlot.x);
         const displaced = active ? sideSlot.x + open * CARD_WIDTH / 2 : (sideSlot.x + direction * open * 1.65) * mobileX;
-        const scale = active ? 1 : sideSlot.scale * (mobile && sideSlot.z < -1 ? .93 : 1) * (1 - open * .70);
+        const scale = active ? 1 : sideSlot.scale * (mobile && sideSlot.z < -3.5 ? .93 : 1) * (1 - open * .70);
+        const travel = Math.abs(book.root.position.x - displaced);
+        const targetZ = active ? sideSlot.z + Math.min(1.1, travel * .55) : sideSlot.z - Math.min(.9, travel * .3);
         updateBookPose(
-          book, displaced, sideSlot.y + drift * (active ? 1 : .4), sideSlot.z,
+          book, displaced, sideSlot.y + drift * (active ? 1 : .4), targetZ,
           sideSlot.pitch + (active ? pitch : 0), sideSlot.yaw * (1 - open * .75) + (active ? yaw : 0),
           sideSlot.roll * (1 - open * .84), scale, active ? open : 0, dt, reducedMotion,
         );
         updateBookShadow(entry, active ? .47 : .31 * (1 - open), active ? open * 1.55 : 0);
       } else if (packaging) {
-        const lift = span(time, .12, .89);
-        const insert = span(time, 1.09, 1.98);
-        const rotation = span(time, .24, .91);
-        const x = mix(open * CARD_WIDTH / 2, 0, lift);
-        const y = mix(lift * 1.72, -.18, insert);
-        const z = mix(.92, .097, span(time, .8, 1.24));
-        const scale = mix(1, .88, rotation);
-        updateBookPose(book, x, y, z, .055 * (1 - rotation), -.07 * (1 - rotation), mix(-.025, Math.PI / 2, rotation), scale, open, dt, true);
+        const prep = span(time, .04, .78);
+        const insert = span(time, .86, 1.72);
+        const followEnv = span(time, 1.88, 2.55);
+        const x = mix(open * CARD_WIDTH / 2, 0, prep);
+        const y = insert > 0
+          ? mix(cardAboveY, envSlotY * (1 - followEnv), insert)
+          : mix(.035, cardAboveY, prep);
+        const z = mix(.30, cardPocketZ, span(time, .08, .72));
+        const scale = mix(1, .84, prep);
+        updateBookPose(book, x, y, z, .057 * (1 - prep), -.10 * (1 - prep), mix(-.025, Math.PI / 2, prep), scale, open, dt, true);
         updateBookShadow(entry, .32 * (1 - insert));
       } else if (breaking) {
-        const pull = span(time, .59, 1.38);
-        const center = span(time, 1.36, 2.15);
-        const rotation = span(time, 1.08, 1.92);
-        const x = -.05 * pull;
-        const y = mix(-.16 + pull * 1.95, .04, center);
-        const z = mix(.087, .9, span(time, .86, 1.43));
-        updateBookPose(book, x, y, z, .057 * center, -.078 * center, mix(Math.PI / 2, -.025, rotation), mix(.88, 1, rotation), 0, dt, true);
+        const pull = span(time, .82, 1.54);
+        const present = span(time, 1.56, 2.34);
+        const x = 0;
+        const y = present > 0
+          ? mix(cardAboveY, .035, present)
+          : mix(breakEnvY, cardAboveY, pull);
+        const z = mix(cardPocketZ, .30, span(time, 1.62, 2.30));
+        const scale = mix(.84, 1, present);
+        updateBookPose(book, x, y, z, .057 * present, -.10 * present, mix(Math.PI / 2, -.025, present), scale, 0, dt, true);
         updateBookShadow(entry, pull * .43);
       } else {
         const x = open * CARD_WIDTH / 2;
@@ -368,19 +423,31 @@ export function createStage(
     if (showEnvelope) {
       const env = envelope.root;
       let positionY = drift;
+      let envRx = .02;
+      let envRy = -.048;
+      let envRz = -.014;
       let flap = 0;
       let wax = 0;
       let fracture = 0;
       let envelopeScale = 1;
       const progress = unit(props.sealProgress ?? 0);
       if (packaging) {
-        positionY -= 2.34 * (1 - span(time, 0, .73)) + .17 * (1 - span(time, 1.76, 2.31));
-        flap = 2.98 * span(time, .10, .65) * (1 - span(time, 1.85, 2.48));
+        positionY = packEnvY;
+        // Keep envelope strictly parallel to card during insertion, then settle to poised tilt once sealed shut.
+        const settleTilt = span(time, 2.24, 2.58);
+        envRx *= settleTilt;
+        envRy *= settleTilt;
+        envRz *= settleTilt;
+        flap = 3.06 * span(time, .06, .62) * (1 - span(time, 1.85, 2.52));
       } else if (breaking) {
-        positionY -= 3.18 * span(time, .99, 1.99);
-        envelopeScale = mix(1, .8, span(time, 1.16, 2.18));
-        flap = 2.98 * span(time, .34, 1.05);
-        fracture = span(time, .025, .65);
+        positionY = breakEnvY;
+        const flattenTilt = 1 - span(time, 0, .42);
+        envRx *= flattenTilt;
+        envRy *= flattenTilt;
+        envRz *= flattenTilt;
+        envelopeScale = mix(1, .84, span(time, 1.56, 2.34));
+        flap = 3.06 * span(time, .22, .78);
+        fracture = span(time, .02, .58);
         wax = 1;
       } else if (envelopePhase === "sealed") {
         wax = .001 + .999 * span(time, 0, .48);
@@ -388,13 +455,13 @@ export function createStage(
       }
 
       env.position.set(0, positionY, -.12);
-      env.rotation.set(.02, -.048, -.014);
+      env.rotation.set(envRx, envRy, envRz);
       env.scale.setScalar(envelopeScale);
       envelope.update(flap, progress, wax, fracture);
       envShadow.position.x = .16;
       envShadow.position.y = positionY - 1.59;
       envShadow.scale.set(ENVELOPE_WIDTH * 1.28 * envelopeScale, .75, 1);
-      envShadow.material.opacity = .44 * (1 - (breaking ? span(time, 1.23, 2.13) : 0));
+      envShadow.material.opacity = .44 * (1 - (breaking ? span(time, 1.56, 2.26) : 0));
     }
 
     if (visible) {
@@ -403,7 +470,7 @@ export function createStage(
       initial = false;
     }
 
-    if (!completed && ((packaging && time >= 2.5) || (breaking && time >= 2.22))) {
+    if (!completed && ((packaging && time >= 2.6) || (breaking && time >= 2.4))) {
       completed = true;
       props.onReady?.();
     }
@@ -457,6 +524,40 @@ export function createStage(
     wake();
   }
 
+  function zoomTo(nextZoom: number) {
+    const props = read();
+    if (props.envelope && props.envelope !== "none" && props.envelope !== "opened") return 1;
+    const clamped = Math.round(THREE.MathUtils.clamp(nextZoom, MIN_ZOOM, MAX_ZOOM) * 100) / 100;
+    requestedZoom = clamped;
+    clampPan(clamped);
+    wake(900);
+    onZoomChange?.(clamped);
+    return clamped;
+  }
+
+  function zoomBy(factor: number) {
+    return zoomTo(requestedZoom * factor);
+  }
+
+  function pan(dx: number, dy: number) {
+    if (requestedZoom <= 1.01 || !height || !cameraSize) return;
+    const unitsPerPx = (cameraSize / zoom) / height;
+    requestedPanX -= dx * unitsPerPx;
+    requestedPanY += dy * unitsPerPx;
+    clampPan(requestedZoom);
+    wake();
+  }
+
+  function resetView() {
+    requestedZoom = 1;
+    requestedPanX = 0;
+    requestedPanY = 0;
+    requestedPitch = 0;
+    requestedYaw = 0;
+    wake(900);
+    onZoomChange?.(1);
+  }
+
   function destroy() {
     observer.disconnect();
     intersection.disconnect();
@@ -471,7 +572,7 @@ export function createStage(
     renderer.domElement.remove();
   }
 
-  return { destroy, hit, rotate, paperPoint };
+  return { destroy, hit, rotate, paperPoint, zoomTo, zoomBy, pan, resetView };
 }
 
 export type SceneStage = NonNullable<ReturnType<typeof createStage>>;

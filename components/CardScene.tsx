@@ -1,9 +1,10 @@
 "use client";
 
+import { RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type RefObject } from "react";
 import { COVER_MANIFEST, coverArt, insideArt, linerArt, loadCoverArt, STICKER_BASE_SIZE, stickerArt } from "@/lib/art";
 import { TEMPLATES, type TemplateSlug } from "@/lib/cards";
-import { createStage, FALLBACK_TIMINGS, GALLERY_SLOTS, galleryOffset, type SceneHit, type SceneProps, type SceneStage } from "@/lib/scene-stage";
+import { createStage, FALLBACK_TIMINGS, GALLERY_SLOTS, galleryOffset, MAX_ZOOM, MIN_ZOOM, type SceneHit, type SceneProps, type SceneStage } from "@/lib/scene-stage";
 import "@/lib/scene-fallback.css";
 
 type ActiveGesture = {
@@ -14,6 +15,7 @@ type ActiveGesture = {
   lastY: number;
   hit: SceneHit;
   moved: boolean;
+  panning: boolean;
 };
 
 function PaintedCanvas({ image, className, style, sticker }: { image: HTMLCanvasElement; className?: string; style?: CSSProperties; sticker?: string }) {
@@ -62,10 +64,11 @@ function Fallback({ draft, mode, envelope, open, sealProgress, selectedSticker }
         const style = {
           "--slot-x": slot.x,
           "--slot-y": slot.y,
+          "--slot-z": Math.round(slot.z * 60) + "px",
           "--slot-yaw": slot.yaw + "rad",
           "--slot-roll": slot.roll + "rad",
           "--slot-scale": slot.scale,
-          zIndex: Math.round(slot.z * 100) + 160,
+          zIndex: Math.round(slot.z * 100) + 500,
         } as CSSProperties;
         return (
           <div className="scene-fallback-side" key={template.slug} style={style} data-scene-card={template.slug} data-open={open ?? false}>
@@ -147,22 +150,99 @@ export default function CardScene(props: SceneProps) {
   const root = useRef<HTMLDivElement>(null);
   const host = useRef<HTMLDivElement>(null);
   const gesture = useRef<ActiveGesture | null>(null);
+  const touches = useRef(new Map<number, { x: number; y: number }>());
+  const pinchStart = useRef<{ dist: number; zoom: number } | null>(null);
   const stage = useRef<SceneStage | undefined>(undefined);
   const fallbackRotation = useRef({ pitch: 0, yaw: 0 });
+  const fallbackZoom = useRef({ scale: 1, x: 0, y: 0 });
   const [gpu, setGpu] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const canZoom = !props.envelope || props.envelope === "none" || props.envelope === "opened";
 
   useLayoutEffect(() => {
     latest.current = props;
   }, [props]);
 
+  function applyFallbackView(nextScale: number, nextX = fallbackZoom.current.x, nextY = fallbackZoom.current.y) {
+    const clamped = Math.round(limit(nextScale, MIN_ZOOM, MAX_ZOOM) * 100) / 100;
+    const maxOffset = Math.max(0, (clamped - 1) * 190);
+    const x = clamped <= 1.01 ? 0 : limit(nextX, -maxOffset, maxOffset);
+    const y = clamped <= 1.01 ? 0 : limit(nextY, -maxOffset, maxOffset);
+    fallbackZoom.current = { scale: clamped, x, y };
+    root.current?.style.setProperty("--fallback-zoom", String(clamped));
+    root.current?.style.setProperty("--fallback-pan-x", `${x}px`);
+    root.current?.style.setProperty("--fallback-pan-y", `${y}px`);
+    setZoom(clamped);
+    return clamped;
+  }
+
+  function applyZoomTo(target: number) {
+    if (!canZoom) return;
+    if (gpu && stage.current) {
+      stage.current.zoomTo(target);
+    } else {
+      applyFallbackView(target);
+    }
+  }
+
+  function applyZoomBy(factor: number) {
+    if (!canZoom) return;
+    if (gpu && stage.current) {
+      stage.current.zoomBy(factor);
+    } else {
+      applyFallbackView(fallbackZoom.current.scale * factor);
+    }
+  }
+
+  function resetView() {
+    if (gpu && stage.current) {
+      stage.current.resetView();
+    } else {
+      fallbackRotation.current = { pitch: 0, yaw: 0 };
+      root.current?.style.removeProperty("--fallback-x");
+      root.current?.style.removeProperty("--fallback-y");
+      applyFallbackView(1, 0, 0);
+    }
+  }
+
   useEffect(() => {
     const element = host.current;
     if (!element) return;
-    stage.current = createStage(element, () => latest.current, setGpu);
+    stage.current = createStage(element, () => latest.current, setGpu, setZoom);
     return () => {
       stage.current?.destroy();
       stage.current = undefined;
     };
+  }, []);
+
+  useEffect(() => {
+    if (!canZoom || !gpu) {
+      if (!canZoom) applyFallbackView(1, 0, 0);
+    }
+  }, [canZoom, gpu]);
+
+  useEffect(() => {
+    if (!gpu) {
+      fallbackRotation.current = { pitch: 0, yaw: 0 };
+      root.current?.style.removeProperty("--fallback-x");
+      root.current?.style.removeProperty("--fallback-y");
+      applyFallbackView(1, 0, 0);
+    }
+  }, [props.draft.template, gpu]);
+
+  useEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    const onWheel = (event: WheelEvent) => {
+      const env = latest.current.envelope;
+      if (env && env !== "none" && env !== "opened") return;
+      event.preventDefault();
+      const factor = Math.exp(-event.deltaY * .0016);
+      if (stage.current) stage.current.zoomBy(factor);
+      else applyFallbackView(fallbackZoom.current.scale * factor);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
   }, []);
 
   useEffect(() => {
@@ -173,15 +253,34 @@ export default function CardScene(props: SceneProps) {
   }, [gpu, props.envelope]);
 
   function pointerDown(event: PointerEvent<HTMLDivElement>) {
-    if (event.button !== 0 || gesture.current) return;
+    if ((event.target as HTMLElement).closest(".scene-zoom-bar")) return;
+    touches.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (touches.current.size === 2 && canZoom) {
+      const [a, b] = [...touches.current.values()];
+      pinchStart.current = { dist: Math.hypot(b.x - a.x, b.y - a.y) || 1, zoom };
+      gesture.current = null;
+      return;
+    }
+    const isRightPan = event.button === 2 && zoom > 1.02;
+    if ((event.button !== 0 && !isRightPan) || gesture.current) return;
     const { clientX, clientY, pointerId, currentTarget } = event;
     const hit = gpu && stage.current ? stage.current.hit(clientX, clientY) : fallbackHit(event.target as HTMLElement, currentTarget, props, clientX, clientY);
-    gesture.current = { id: pointerId, startX: clientX, startY: clientY, lastX: clientX, lastY: clientY, hit, moved: false };
-    if (hit.sticker) props.onStickerSelect?.(hit.sticker);
+    const panning = canZoom && zoom > 1.02 && (isRightPan || event.shiftKey);
+    gesture.current = { id: pointerId, startX: clientX, startY: clientY, lastX: clientX, lastY: clientY, hit, moved: false, panning };
+    if (hit.sticker && !panning) props.onStickerSelect?.(hit.sticker);
     currentTarget.setPointerCapture(pointerId);
   }
 
   function pointerMove(event: PointerEvent<HTMLDivElement>) {
+    if (touches.current.has(event.pointerId)) {
+      touches.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (touches.current.size === 2 && pinchStart.current && canZoom) {
+        const [a, b] = [...touches.current.values()];
+        const dist = Math.hypot(b.x - a.x, b.y - a.y);
+        applyZoomTo(pinchStart.current.zoom * (dist / pinchStart.current.dist));
+        return;
+      }
+    }
     const active = gesture.current;
     if (!active || active.id !== event.pointerId) return;
     const dx = event.clientX - active.lastX;
@@ -190,6 +289,15 @@ export default function CardScene(props: SceneProps) {
     active.lastX = event.clientX;
     active.lastY = event.clientY;
     active.moved = true;
+
+    if (active.panning) {
+      if (gpu && stage.current) {
+        stage.current.pan(dx, dy);
+      } else {
+        applyFallbackView(fallbackZoom.current.scale, fallbackZoom.current.x + dx, fallbackZoom.current.y + dy);
+      }
+      return;
+    }
 
     if (active.hit.sticker && props.onStickerMove) {
       const p = gpu && stage.current ? stage.current.paperPoint(event.clientX, event.clientY) : fallbackPoint(root, event.clientX, event.clientY);
@@ -216,9 +324,12 @@ export default function CardScene(props: SceneProps) {
   }
 
   function pointerEnd(event: PointerEvent<HTMLDivElement>, cancelled = false) {
+    touches.current.delete(event.pointerId);
+    if (touches.current.size < 2) pinchStart.current = null;
     const active = gesture.current;
     if (!active || active.id !== event.pointerId) return;
     gesture.current = null;
+    if (active.panning) return;
     if (active.hit.sticker) {
       if (active.moved) props.onStickerCommit?.();
       return;
@@ -230,11 +341,13 @@ export default function CardScene(props: SceneProps) {
       fallbackRotation.current = { pitch: 0, yaw: 0 };
       root.current?.style.removeProperty("--fallback-x");
       root.current?.style.removeProperty("--fallback-y");
+      applyFallbackView(1, 0, 0);
       props.onTemplateSelect?.(active.hit.slug);
     }
   }
 
-  const canToggle = !!props.onToggle && (!props.envelope || props.envelope === "none" || props.envelope === "opened");
+  const canToggle = !!props.onToggle && canZoom;
+  const zoomPercent = Math.round(zoom * 100);
   return (
     <div
       ref={root}
@@ -243,6 +356,7 @@ export default function CardScene(props: SceneProps) {
       tabIndex={canToggle ? 0 : undefined}
       aria-label={canToggle ? (props.open ? "合上贺卡" : "翻开贺卡") : "三维生日信预览"}
       aria-pressed={canToggle ? Boolean(props.open) : undefined}
+      onContextMenu={(event) => { if (zoom > 1.02) event.preventDefault(); }}
       onKeyDown={(event) => {
         if (canToggle && (event.key === " " || event.key === "Enter")) {
           event.preventDefault();
@@ -257,6 +371,21 @@ export default function CardScene(props: SceneProps) {
     >
       <div ref={host} className="absolute inset-0" aria-hidden="true" />
       {!gpu && <Fallback {...props} />}
+      {canZoom && (
+        <div
+          className={`scene-zoom-bar glass ${zoom > 1.02 ? "is-zoomed" : ""}`}
+          role="group"
+          aria-label="贺卡缩放控制"
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <button type="button" className="icon-btn" aria-label="缩小" title="缩小（或滚轮向下）" disabled={zoom <= MIN_ZOOM + .01} onClick={() => applyZoomBy(1 / 1.25)}><ZoomOut size={15} /></button>
+          <button type="button" className="scene-zoom-pct" aria-label="重置缩放" title="点击复位视角" onClick={resetView}>{zoomPercent}%</button>
+          <button type="button" className="icon-btn" aria-label="放大查看细节" title="放大查看细节（或滚轮向上）" disabled={zoom >= MAX_ZOOM - .01} onClick={() => applyZoomBy(1.25)}><ZoomIn size={15} /></button>
+          {zoom > 1.02 && (
+            <button type="button" className="icon-btn" aria-label="复位视角" title="复位视角" onClick={resetView}><RotateCcw size={14} /></button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

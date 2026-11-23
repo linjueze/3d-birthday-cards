@@ -11,10 +11,10 @@ const CARD_DEPTH = .046;
 const HALF_CARD = CARD_WIDTH / 2;
 const COVER_CENTER = CARD_DEPTH + .015;
 
-export function imageTexture(canvas: HTMLCanvasElement, color = true) {
+export function imageTexture(canvas: HTMLCanvasElement, color = true, anisotropy = 8) {
   const texture = new THREE.CanvasTexture(canvas);
   if (color) texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
+  texture.anisotropy = anisotropy;
   return texture;
 }
 
@@ -395,7 +395,7 @@ export function buildEnvelope(paper: ScenePaperMaps) {
   const bottomPanel = new THREE.Mesh(matchingUVs(new THREE.ShapeGeometry(envelopeShape([
     [-halfW, -halfH], [halfW, -halfH], [halfW, halfH], [0, -.37], [-halfW, halfH],
   ])), ENVELOPE_WIDTH, ENVELOPE_HEIGHT), base);
-  bottomPanel.position.z = .33;
+  bottomPanel.position.z = .46;
   root.add(bottomPanel);
   const sidePanels = [
     [[-halfW, -halfH], [-halfW, halfH], [.32, -.39], [-.97, -1.10]],
@@ -403,26 +403,26 @@ export function buildEnvelope(paper: ScenePaperMaps) {
   ] as [number, number][][];
   for (const points of sidePanels) {
     const side = new THREE.Mesh(matchingUVs(new THREE.ShapeGeometry(envelopeShape(points)), ENVELOPE_WIDTH, ENVELOPE_HEIGHT), shade);
-    side.position.z = .345;
+    side.position.z = .475;
     root.add(side);
   }
-  // The overlapping lower pocket hides the side-panel cuts and occludes the inserted card.
+  // The overlapping lower pocket hides the side-panel cuts and occludes the inserted card cleanly.
   const lowerFace = new THREE.Mesh(matchingUVs(new THREE.ShapeGeometry(envelopeShape([
     [-halfW, -halfH], [halfW, -halfH], [halfW - .18, -1.27], [0, -.26], [-halfW + .18, -1.27],
   ])), ENVELOPE_WIDTH, ENVELOPE_HEIGHT), face);
-  lowerFace.position.z = .359;
+  lowerFace.position.z = .49;
   root.add(lowerFace);
   root.add(seam([
-    new THREE.Vector3(-halfW + .025, -halfH + .02, .37),
-    new THREE.Vector3(-1.24, -.84, .37),
-    new THREE.Vector3(0, -.29, .37),
-    new THREE.Vector3(1.24, -.84, .37),
-    new THREE.Vector3(halfW - .025, -halfH + .02, .37),
+    new THREE.Vector3(-halfW + .025, -halfH + .02, .50),
+    new THREE.Vector3(-1.24, -.84, .50),
+    new THREE.Vector3(0, -.29, .50),
+    new THREE.Vector3(1.24, -.84, .50),
+    new THREE.Vector3(halfW - .025, -halfH + .02, .50),
   ], "#d4bb96", .009));
 
   const flapHeight = halfH + .24;
   const flap = new THREE.Group();
-  flap.position.set(0, halfH, .373);
+  flap.position.set(0, halfH, .504);
   const geometry = flapGeometry(ENVELOPE_WIDTH, flapHeight);
   flap.add(new THREE.Mesh(geometry, face), new THREE.Mesh(geometry, linerReverse));
   const waxSpot = new THREE.Group();
@@ -450,9 +450,9 @@ export function buildEnvelope(paper: ScenePaperMaps) {
 
   function update(flapAngle: number, waxProgress: number, sealed: number, fracture: number) {
     flap.rotation.x = flapAngle;
-    // The folded edge follows the pocket depth while the liner clears the card.
-    flap.position.z = THREE.MathUtils.lerp(.373, .042, THREE.MathUtils.smoothstep(flapAngle, 0, 1.32));
-    const bend = Math.sin(flapAngle) * .23;
+    // Keep the open flap seated cleanly behind the pocket plane so the card never clips it.
+    flap.position.z = THREE.MathUtils.lerp(.504, .012, THREE.MathUtils.smoothstep(flapAngle, 0, 1.15));
+    const bend = Math.sin(flapAngle) * .18;
     if (Math.abs(bend - lastBend) > .001) {
       const position = geometry.getAttribute("position");
       for (let index = 0; index < position.count; index++) {
