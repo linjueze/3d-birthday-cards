@@ -14,7 +14,7 @@ export default function Gallery() {
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
   useEffect(() => {
-    for (const item of TEMPLATES) void loadCoverArt(item.slug);
+    for (const item of TEMPLATES) void loadCoverArt(item.slug, item.slug === TEMPLATES[0].slug ? "high" : "low");
   }, []);
   const selected = TEMPLATES.findIndex((theme) => theme.slug === slug);
   const template = TEMPLATES[selected];

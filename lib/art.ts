@@ -2,9 +2,10 @@ import type { CardDraft, FontId, PaperId, TemplateSlug } from "./cards";
 import { coverBase, coverFoil, coverIllustration, coverPalette, drawPaperGrain } from "./art-covers";
 import { ART_HEIGHT, ART_WIDTH, drawPath, ellipse, gold, gradient, randomFrom, spacedText, star, surface } from "./art-ornaments";
 import { STICKER_BASE_SIZE, stickerArt } from "./art-stickers";
+import { COVER_PREVIEW_DATA_URI } from "./cover-previews";
 import { withBasePath } from "./share-codec";
 
-export { STICKER_BASE_SIZE, stickerArt };
+export { COVER_PREVIEW_DATA_URI, STICKER_BASE_SIZE, stickerArt };
 
 export interface CoverArt {
   base: HTMLCanvasElement;
@@ -39,28 +40,116 @@ export const COVER_MANIFEST: Record<TemplateSlug, CoverMaterialManifest> = {
 };
 
 const covers = new Map<TemplateSlug, CoverArt>();
+const placeholders = new Map<TemplateSlug, CoverArt>();
+const previewCanvases = new Map<TemplateSlug, HTMLCanvasElement>();
+const loadedPreviews = new Map<TemplateSlug, Promise<HTMLCanvasElement | undefined>>();
+const cachedBase = new Map<TemplateSlug, HTMLCanvasElement>();
+const loadedBase = new Map<TemplateSlug, Promise<HTMLCanvasElement | undefined>>();
 const loadedCovers = new Map<TemplateSlug, Promise<CoverArt>>();
 const insideImages = new Map<TemplateSlug, HTMLImageElement>();
 const loadedInside = new Map<TemplateSlug, Promise<HTMLImageElement | undefined>>();
+
+function decodeImage(url: string, priority: "high" | "low" | "auto" = "auto"): Promise<HTMLImageElement | undefined> {
+  return new Promise((resolve) => {
+    const image = new Image();
+    if (!url.startsWith("data:")) image.crossOrigin = "anonymous";
+    if ("fetchPriority" in image && !url.startsWith("data:")) {
+      (image as HTMLImageElement & { fetchPriority: string }).fetchPriority = priority;
+    }
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      resolve(ok && image.naturalWidth > 0 ? image : undefined);
+    };
+    image.onload = () => {
+      if (typeof image.decode === "function") {
+        image.decode().then(() => finish(true)).catch(() => finish(true));
+      } else {
+        finish(true);
+      }
+    };
+    image.onerror = () => finish(false);
+    image.src = url;
+  });
+}
 
 export function getInsideImage(slug: TemplateSlug): HTMLImageElement | undefined {
   return insideImages.get(slug);
 }
 
 export function loadInsideArt(slug: TemplateSlug): Promise<HTMLImageElement | undefined> {
+  const cached = insideImages.get(slug);
+  if (cached) return Promise.resolve(cached);
   const existing = loadedInside.get(slug);
   if (existing) return existing;
-  const promise = new Promise<HTMLImageElement | undefined>((resolve) => {
-    const image = new Image();
-    image.crossOrigin = "anonymous";
-    image.src = withBasePath(`/assets/cards/${slug}/inside.webp`);
-    image.decode().then(() => {
-      insideImages.set(slug, image);
-      resolve(image);
-    }).catch(() => resolve(undefined));
+  const promise = decodeImage(withBasePath(`/assets/cards/${slug}/inside.webp`), "auto").then((image) => {
+    if (image) insideImages.set(slug, image);
+    else loadedInside.delete(slug);
+    return image;
   });
   loadedInside.set(slug, promise);
   return promise;
+}
+
+/** Lightweight cardstock placeholder used only during the ~2ms inline WebP decode window. */
+export function placeholderCoverArt(slug: TemplateSlug): CoverArt {
+  const cached = placeholders.get(slug);
+  if (cached) return cached;
+  const palette = coverPalette[slug];
+  const base = surface(64, 85);
+  base.ctx.fillStyle = gradient(base.ctx, 0, 0, 64, 85, [[0, palette.top], [.5, palette.middle], [1, palette.bottom]]);
+  base.ctx.fillRect(0, 0, 64, 85);
+  const empty = surface(2, 2);
+  const flatHeight = surface(2, 2);
+  flatHeight.ctx.fillStyle = "#000000";
+  flatHeight.ctx.fillRect(0, 0, 2, 2);
+  const artwork: CoverArt = {
+    base: base.canvas,
+    illustration: empty.canvas,
+    foil: empty.canvas,
+    height: flatHeight.canvas,
+    composite: base.canvas,
+  };
+  placeholders.set(slug, artwork);
+  return artwork;
+}
+
+export function loadCoverPreview(slug: TemplateSlug): Promise<HTMLCanvasElement | undefined> {
+  const ready = previewCanvases.get(slug);
+  if (ready) return Promise.resolve(ready);
+  const existing = loadedPreviews.get(slug);
+  if (existing) return existing;
+  const uri = COVER_PREVIEW_DATA_URI[slug];
+  if (!uri) return Promise.resolve(undefined);
+  const promise = decodeImage(uri).then((image) => {
+    if (!image) {
+      loadedPreviews.delete(slug);
+      return undefined;
+    }
+    const { canvas, ctx } = surface(image.naturalWidth, image.naturalHeight);
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    previewCanvases.set(slug, canvas);
+    return canvas;
+  });
+  loadedPreviews.set(slug, promise);
+  return promise;
+}
+
+// Pre-decode all 4 tiny inline WebP cover previews (~2-4ms total, zero network) right at module load
+// so they are already sitting in memory synchronously when the 3D scene mounts.
+if (typeof window !== "undefined") {
+  for (const slug of Object.keys(COVER_PREVIEW_DATA_URI) as TemplateSlug[]) {
+    void loadCoverPreview(slug);
+  }
+}
+
+export function getInitialCoverBase(slug: TemplateSlug): HTMLCanvasElement {
+  return cachedBase.get(slug) ?? previewCanvases.get(slug) ?? placeholderCoverArt(slug).base;
+}
+
+export function isFullCoverBaseCached(slug: TemplateSlug): boolean {
+  return cachedBase.has(slug);
 }
 
 function heightLayer(ctx: CanvasRenderingContext2D, mask: HTMLCanvasElement, color: string) {
@@ -107,43 +196,52 @@ export function coverArt(slug: TemplateSlug): CoverArt {
   return artwork;
 }
 
-async function renderExternalLayer(url: string) {
-  const image = new Image();
-  image.crossOrigin = "anonymous";
-  image.src = url;
-  try {
-    await image.decode();
-    const { canvas, ctx } = surface();
-    ctx.drawImage(image, 0, 0, ART_WIDTH, ART_HEIGHT);
-    return canvas;
-  } catch {
-    return undefined;
-  }
+async function renderExternalLayer(url: string, priority: "high" | "low" | "auto" = "auto") {
+  const image = await decodeImage(url, priority);
+  if (!image) return undefined;
+  const { canvas, ctx } = surface();
+  ctx.drawImage(image, 0, 0, ART_WIDTH, ART_HEIGHT);
+  return canvas;
 }
 
-export function loadCoverArt(slug: TemplateSlug): Promise<CoverArt> {
+export function loadCoverBase(slug: TemplateSlug, priority: "high" | "low" | "auto" = "high"): Promise<HTMLCanvasElement | undefined> {
+  const ready = cachedBase.get(slug);
+  if (ready) return Promise.resolve(ready);
+  const existing = loadedBase.get(slug);
+  if (existing) return existing;
+  const url = COVER_MANIFEST[slug].maps?.base;
+  if (!url) return Promise.resolve(undefined);
+  const promise = renderExternalLayer(url, priority).then((canvas) => {
+    if (canvas) cachedBase.set(slug, canvas);
+    else loadedBase.delete(slug);
+    return canvas;
+  });
+  loadedBase.set(slug, promise);
+  return promise;
+}
+
+export function loadCoverArt(slug: TemplateSlug, priority: "high" | "low" | "auto" = "auto"): Promise<CoverArt> {
   void loadInsideArt(slug);
   const manifest = COVER_MANIFEST[slug];
-  const procedural = manifest.procedural(slug);
-  const entries = Object.entries(manifest.maps ?? {}) as [keyof CoverArt, string][];
-  if (!entries.length) return Promise.resolve(procedural);
+  const maps = manifest.maps ?? {};
+  if (!Object.keys(maps).length) return Promise.resolve(manifest.procedural(slug));
   const cached = loadedCovers.get(slug);
   if (cached) return cached;
 
-  const result = Promise.all(entries.map(async ([name, url]) => [name, await renderExternalLayer(url)] as const))
-    .then((layers) => {
-      const overrides = Object.fromEntries(layers) as Partial<CoverArt>;
-      const base = overrides.base ?? procedural.base;
-      const illustration = overrides.illustration ?? procedural.illustration;
-      const foil = overrides.foil ?? procedural.foil;
-      let composite = overrides.composite;
-      if (!composite) {
-        const composition = surface();
-        for (const layer of [base, illustration, foil]) composition.ctx.drawImage(layer, 0, 0);
-        composite = composition.canvas;
-      }
-      return { base, illustration, foil, height: overrides.height ?? procedural.height, composite };
-    });
+  // Fetch all full-resolution PBR layers in parallel (zero waterfall, deduplicated base.webp).
+  const result = Promise.all([
+    loadCoverBase(slug, priority === "low" ? "low" : "high"),
+    maps.illustration ? renderExternalLayer(maps.illustration, priority) : Promise.resolve(undefined),
+    maps.foil ? renderExternalLayer(maps.foil, priority) : Promise.resolve(undefined),
+    maps.height ? renderExternalLayer(maps.height, "low") : Promise.resolve(undefined),
+  ]).then(([baseMap, reliefMap, foilMap, heightMap]) => {
+    const fallback = !baseMap ? manifest.procedural(slug) : placeholderCoverArt(slug);
+    const base = baseMap ?? fallback.base;
+    const illustration = reliefMap ?? fallback.illustration;
+    const foil = foilMap ?? fallback.foil;
+    const height = heightMap ?? fallback.height;
+    return { base, illustration, foil, height, composite: base };
+  });
   loadedCovers.set(slug, result);
   return result;
 }

@@ -1,5 +1,9 @@
 import * as THREE from "three";
-import { COVER_MANIFEST, coverArt, insideArt, insideEmblemArt, linerArt, loadCoverArt, loadInsideArt, paperMaps, STICKER_BASE_SIZE, stickerArt } from "./art";
+import {
+  COVER_MANIFEST, coverArt, getInitialCoverBase, insideArt, insideEmblemArt, isFullCoverBaseCached,
+  linerArt, loadCoverArt, loadCoverBase, loadCoverPreview, loadInsideArt, paperMaps, placeholderCoverArt,
+  STICKER_BASE_SIZE, stickerArt,
+} from "./art";
 import { TEMPLATES, type CardDraft, type PaperId, type TemplateSlug } from "./cards";
 import { createCoverLivingFX, createFoilSheen } from "./scene-fx";
 
@@ -17,6 +21,19 @@ export function imageTexture(canvas: HTMLCanvasElement, color = true, anisotropy
   if (color) texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = anisotropy;
   return texture;
+}
+
+/**
+ * Replaces a material's map with a fresh CanvasTexture and disposes the old one.
+ * Required in WebGL2 (Three.js r180+) whenever canvas dimensions change (e.g. 240x320
+ * inline preview -> 900x1200 WebP), because texStorage2D allocates immutable texture sizes.
+ */
+function replaceMap(material: THREE.MeshPhysicalMaterial, canvas: HTMLCanvasElement) {
+  const previous = material.map;
+  if (previous && previous.image === canvas) return;
+  material.map = imageTexture(canvas);
+  material.needsUpdate = true;
+  previous?.dispose();
 }
 
 function studioMaterial(options: THREE.MeshPhysicalMaterialParameters) {
@@ -56,11 +73,21 @@ function heightNormal(source: HTMLCanvasElement, strength: number, channel = 0) 
 }
 
 export function buildPaperMaps() {
-  const papers: PaperId[] = ["watercolor", "kraft", "pearl"];
-  return new Map(papers.map((id) => {
-    const maps = paperMaps(id);
-    return [id, { normal: imageTexture(maps.normal, false), roughness: imageTexture(maps.roughness, false) }];
-  }));
+  const cache = new Map<PaperId, { normal: THREE.CanvasTexture; roughness: THREE.CanvasTexture }>();
+  return {
+    get(id: PaperId) {
+      let entry = cache.get(id);
+      if (!entry) {
+        const maps = paperMaps(id);
+        entry = { normal: imageTexture(maps.normal, false), roughness: imageTexture(maps.roughness, false) };
+        cache.set(id, entry);
+      }
+      return entry;
+    },
+    values() {
+      return cache.values();
+    },
+  };
 }
 
 export type ScenePaperMaps = ReturnType<typeof buildPaperMaps>;
@@ -72,9 +99,16 @@ function cardPlane(material: THREE.Material, x: number, z: number, back = false)
   return mesh;
 }
 
-export function buildBook(slug: TemplateSlug, draft: CardDraft, allMaps: ScenePaperMaps, onMaterialChange: () => void) {
+export function buildBook(
+  slug: TemplateSlug,
+  draft: CardDraft,
+  allMaps: ScenePaperMaps,
+  onMaterialChange: () => void,
+  isPriority = true,
+) {
   const template = TEMPLATES.find((item) => item.slug === slug)!;
-  const artwork = coverArt(slug);
+  const hasExternalMaps = Object.keys(COVER_MANIFEST[slug].maps ?? {}).length > 0;
+  const artwork = hasExternalMaps ? placeholderCoverArt(slug) : coverArt(slug);
   const root = new THREE.Group();
   const hinge = new THREE.Group();
   hinge.position.set(-HALF_CARD, 0, COVER_CENTER);
@@ -92,8 +126,11 @@ export function buildBook(slug: TemplateSlug, draft: CardDraft, allMaps: ScenePa
   spine.position.set(-HALF_CARD + .017, 0, COVER_CENTER / 2);
   root.add(spine);
 
-  const exterior = studioMaterial({ map: imageTexture(artwork.base), roughness: .81 });
-  const reliefNormal = heightNormal(artwork.height, .67);
+  // Frame 0: Paint the inline 240x320 NEW illustrated cover (or cached full-res base.webp) immediately —
+  // never shows the legacy procedural cover and never shows a blank card while full-res WebPs download.
+  const initialBase = hasExternalMaps ? getInitialCoverBase(slug) : artwork.base;
+  const exterior = studioMaterial({ map: imageTexture(initialBase), roughness: .81 });
+  let reliefNormal: THREE.CanvasTexture | null = hasExternalMaps ? null : heightNormal(artwork.height, .67);
   const relief = studioMaterial({
     map: imageTexture(artwork.illustration), normalMap: reliefNormal, normalScale: new THREE.Vector2(.52, .52),
     transparent: true, depthWrite: false, alphaTest: .025, clearcoat: .21, clearcoatRoughness: .57, roughness: .73,
@@ -110,18 +147,37 @@ export function buildBook(slug: TemplateSlug, draft: CardDraft, allMaps: ScenePa
   livingFX.group.position.set(HALF_CARD, 0, CARD_DEPTH / 2 + .017);
 
   let active = true;
-  if (Object.keys(COVER_MANIFEST[slug].maps ?? {}).length) {
-    void loadCoverArt(slug).then((replacement) => {
+  let fullBaseApplied = !hasExternalMaps || isFullCoverBaseCached(slug);
+  if (hasExternalMaps) {
+    const priority = isPriority ? "high" : "low";
+    // If the inline 240x320 preview was still decoding during the very first 2ms, swap it in immediately.
+    if (!fullBaseApplied) {
+      void loadCoverPreview(slug).then((previewCanvas) => {
+        if (!active || fullBaseApplied || !previewCanvas) return;
+        replaceMap(exterior, previewCanvas);
+        onMaterialChange();
+      }).catch(() => undefined);
+    }
+    // Kick off base.webp AND all PBR layers in parallel (zero waterfall!):
+    // - full-res base.webp sharpens exterior the millisecond it finishes (without waiting for foil/relief)
+    // - relief, foil, and height normal layer seamlessly right behind it.
+    void loadCoverBase(slug, priority).then((baseCanvas) => {
+      if (!active || !baseCanvas) return;
+      fullBaseApplied = true;
+      replaceMap(exterior, baseCanvas);
+      onMaterialChange();
+    }).catch(() => undefined);
+    void loadCoverArt(slug, priority).then((replacement) => {
       if (!active) return;
-      for (const [material, canvas] of [[exterior, replacement.base], [relief, replacement.illustration], [foil, replacement.foil]] as const) {
-        material.map!.image = canvas;
-        material.map!.needsUpdate = true;
-      }
+      fullBaseApplied = true;
+      replaceMap(exterior, replacement.base);
+      replaceMap(relief, replacement.illustration);
+      replaceMap(foil, replacement.foil);
       foilSheen.setMap(foil.map!);
       if (replacement.height !== artwork.height) {
-        reliefNormal.dispose();
-        const nextNormal = heightNormal(replacement.height, .72);
-        relief.normalMap = foil.normalMap = nextNormal;
+        reliefNormal?.dispose();
+        reliefNormal = heightNormal(replacement.height, .72);
+        relief.normalMap = foil.normalMap = reliefNormal;
         relief.needsUpdate = foil.needsUpdate = true;
       }
       onMaterialChange();

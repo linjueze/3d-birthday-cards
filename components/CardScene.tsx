@@ -2,7 +2,7 @@
 
 import { RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type RefObject } from "react";
-import { COVER_MANIFEST, coverArt, insideArt, linerArt, loadCoverArt, loadInsideArt, STICKER_BASE_SIZE, stickerArt } from "@/lib/art";
+import { COVER_MANIFEST, COVER_PREVIEW_DATA_URI, coverArt, getInitialCoverBase, insideArt, linerArt, loadCoverBase, loadCoverPreview, loadInsideArt, STICKER_BASE_SIZE, stickerArt } from "@/lib/art";
 import { TEMPLATES, type TemplateSlug } from "@/lib/cards";
 import { createStage, FALLBACK_TIMINGS, GALLERY_SLOTS, galleryOffset, MAX_ZOOM, MIN_ZOOM, type SceneHit, type SceneProps, type SceneStage } from "@/lib/scene-stage";
 import "@/lib/scene-fallback.css";
@@ -31,16 +31,26 @@ function PaintedCanvas({ image, className, style, sticker }: { image: HTMLCanvas
 }
 
 function FallbackCover({ slug }: { slug: TemplateSlug }) {
+  const hasExternal = Object.keys(COVER_MANIFEST[slug].maps ?? {}).length > 0;
   const [replacement, setReplacement] = useState<{ slug: TemplateSlug; canvas: HTMLCanvasElement }>();
   useEffect(() => {
-    if (!Object.keys(COVER_MANIFEST[slug].maps ?? {}).length) return;
+    if (!hasExternal) return;
     let current = true;
-    void loadCoverArt(slug).then((art) => {
-      if (current) setReplacement({ slug, canvas: art.composite });
+    let upgraded = false;
+    void loadCoverPreview(slug).then((preview) => {
+      if (current && !upgraded && preview) setReplacement({ slug, canvas: preview });
+    }).catch(() => undefined);
+    void loadCoverBase(slug, "high").then((canvas) => {
+      if (!current) return;
+      upgraded = true;
+      setReplacement({ slug, canvas: canvas ?? coverArt(slug).composite });
     }).catch(() => undefined);
     return () => { current = false; };
-  }, [slug]);
-  return <PaintedCanvas image={replacement?.slug === slug ? replacement.canvas : coverArt(slug).composite} />;
+  }, [hasExternal, slug]);
+  if (hasExternal && replacement?.slug !== slug && COVER_PREVIEW_DATA_URI[slug]) {
+    return <img src={COVER_PREVIEW_DATA_URI[slug]} alt="" aria-hidden="true" style={{ width: "100%", height: "100%", display: "block", objectFit: "cover" }} />;
+  }
+  return <PaintedCanvas image={replacement?.slug === slug ? replacement.canvas : (hasExternal ? getInitialCoverBase(slug) : coverArt(slug).composite)} />;
 }
 
 function Fallback({ draft, mode, envelope, open, sealProgress, selectedSticker }: SceneProps) {

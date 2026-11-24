@@ -8,6 +8,7 @@ import "@fontsource/caveat/500.css";
 import "@fontsource/long-cang/400.css";
 import "@fontsource/noto-serif-sc/500.css";
 import "./globals.css";
+import { withBasePath } from "@/lib/share-codec";
 
 export const metadata: Metadata = {
   title: { default: "Birthday Cards · 生日信", template: "%s · Birthday Cards" },
@@ -15,5 +16,12 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="zh-CN"><body>{children}</body></html>;
+  return (
+    <html lang="zh-CN">
+      <head>
+        <link rel="preload" as="image" href={withBasePath("/assets/cards/candlelight-cake/base.webp")} fetchPriority="high" />
+      </head>
+      <body>{children}</body>
+    </html>
+  );
 }
