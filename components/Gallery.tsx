@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import CardScene from "@/components/CardScene";
 import { Brand, useToast } from "@/components/Shared";
 import { CardThumb } from "@/components/Thumbnails";
-import { loadCoverArt } from "@/lib/art";
+import { preloadTemplates } from "@/lib/art";
 import { defaultDraft, TEMPLATES, type TemplateSlug } from "@/lib/cards";
 
 export default function Gallery() {
@@ -14,7 +14,7 @@ export default function Gallery() {
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
   useEffect(() => {
-    for (const item of TEMPLATES) void loadCoverArt(item.slug);
+    preloadTemplates(TEMPLATES[0].slug, TEMPLATES.map((item) => item.slug));
   }, []);
   const selected = TEMPLATES.findIndex((theme) => theme.slug === slug);
   const template = TEMPLATES[selected];

@@ -39,27 +39,107 @@ export const COVER_MANIFEST: Record<TemplateSlug, CoverMaterialManifest> = {
 };
 
 const covers = new Map<TemplateSlug, CoverArt>();
+const placeholders = new Map<TemplateSlug, CoverArt>();
+const loadedBase = new Map<TemplateSlug, Promise<HTMLCanvasElement | undefined>>();
+const cachedBase = new Map<TemplateSlug, HTMLCanvasElement>();
 const loadedCovers = new Map<TemplateSlug, Promise<CoverArt>>();
 const insideImages = new Map<TemplateSlug, HTMLImageElement>();
 const loadedInside = new Map<TemplateSlug, Promise<HTMLImageElement | undefined>>();
+
+function decodeImage(url: string, priority: "high" | "low" | "auto" = "auto"): Promise<HTMLImageElement | undefined> {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    if ("fetchPriority" in image) {
+      (image as HTMLImageElement & { fetchPriority: string }).fetchPriority = priority;
+    }
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      resolve(ok && image.naturalWidth > 0 ? image : undefined);
+    };
+    image.onload = () => {
+      if (typeof image.decode === "function") {
+        image.decode().then(() => finish(true)).catch(() => finish(true));
+      } else {
+        finish(true);
+      }
+    };
+    image.onerror = () => finish(false);
+    image.src = url;
+  });
+}
 
 export function getInsideImage(slug: TemplateSlug): HTMLImageElement | undefined {
   return insideImages.get(slug);
 }
 
-export function loadInsideArt(slug: TemplateSlug): Promise<HTMLImageElement | undefined> {
+export function loadInsideArt(slug: TemplateSlug, priority: "high" | "low" | "auto" = "low"): Promise<HTMLImageElement | undefined> {
+  const cached = insideImages.get(slug);
+  if (cached) return Promise.resolve(cached);
   const existing = loadedInside.get(slug);
   if (existing) return existing;
-  const promise = new Promise<HTMLImageElement | undefined>((resolve) => {
-    const image = new Image();
-    image.crossOrigin = "anonymous";
-    image.src = withBasePath(`/assets/cards/${slug}/inside.webp`);
-    image.decode().then(() => {
-      insideImages.set(slug, image);
-      resolve(image);
-    }).catch(() => resolve(undefined));
+  const promise = decodeImage(withBasePath(`/assets/cards/${slug}/inside.webp`), priority).then((image) => {
+    if (image) insideImages.set(slug, image);
+    else loadedInside.delete(slug);
+    return image;
   });
   loadedInside.set(slug, promise);
+  return promise;
+}
+
+/**
+ * Ultra-lightweight (<0.3ms) soft cardstock placeholder used while real WebP textures stream in,
+ * avoiding heavy procedural drawing on frame 1 and preventing old-to-new visual flashes.
+ */
+export function placeholderCoverArt(slug: TemplateSlug): CoverArt {
+  const cached = placeholders.get(slug);
+  if (cached) return cached;
+  const palette = coverPalette[slug];
+  const base = surface(64, 85);
+  base.ctx.fillStyle = gradient(base.ctx, 0, 0, 64, 85, [[0, palette.top], [.5, palette.middle], [1, palette.bottom]]);
+  base.ctx.fillRect(0, 0, 64, 85);
+  const empty = surface(2, 2);
+  const flatHeight = surface(2, 2);
+  flatHeight.ctx.fillStyle = "#000000";
+  flatHeight.ctx.fillRect(0, 0, 2, 2);
+  const artwork: CoverArt = {
+    base: base.canvas,
+    illustration: empty.canvas,
+    foil: empty.canvas,
+    height: flatHeight.canvas,
+    composite: base.canvas,
+  };
+  placeholders.set(slug, artwork);
+  return artwork;
+}
+
+export function getCachedCoverBase(slug: TemplateSlug): HTMLCanvasElement | undefined {
+  return cachedBase.get(slug);
+}
+
+async function renderExternalLayer(url: string, priority: "high" | "low" | "auto" = "auto") {
+  const image = await decodeImage(url, priority);
+  if (!image) return undefined;
+  const { canvas, ctx } = surface();
+  ctx.drawImage(image, 0, 0, ART_WIDTH, ART_HEIGHT);
+  return canvas;
+}
+
+export function loadCoverBase(slug: TemplateSlug, priority: "high" | "low" | "auto" = "auto"): Promise<HTMLCanvasElement | undefined> {
+  const ready = cachedBase.get(slug);
+  if (ready) return Promise.resolve(ready);
+  const existing = loadedBase.get(slug);
+  if (existing) return existing;
+  const url = COVER_MANIFEST[slug].maps?.base;
+  if (!url) return Promise.resolve(undefined);
+  const promise = renderExternalLayer(url, priority).then((canvas) => {
+    if (canvas) cachedBase.set(slug, canvas);
+    else loadedBase.delete(slug);
+    return canvas;
+  });
+  loadedBase.set(slug, promise);
   return promise;
 }
 
@@ -107,45 +187,42 @@ export function coverArt(slug: TemplateSlug): CoverArt {
   return artwork;
 }
 
-async function renderExternalLayer(url: string) {
-  const image = new Image();
-  image.crossOrigin = "anonymous";
-  image.src = url;
-  try {
-    await image.decode();
-    const { canvas, ctx } = surface();
-    ctx.drawImage(image, 0, 0, ART_WIDTH, ART_HEIGHT);
-    return canvas;
-  } catch {
-    return undefined;
-  }
-}
-
-export function loadCoverArt(slug: TemplateSlug): Promise<CoverArt> {
-  void loadInsideArt(slug);
+export function loadCoverArt(slug: TemplateSlug, priority: "high" | "low" | "auto" = "auto"): Promise<CoverArt> {
   const manifest = COVER_MANIFEST[slug];
-  const procedural = manifest.procedural(slug);
-  const entries = Object.entries(manifest.maps ?? {}) as [keyof CoverArt, string][];
-  if (!entries.length) return Promise.resolve(procedural);
+  const maps = manifest.maps ?? {};
+  if (!Object.keys(maps).length) return Promise.resolve(manifest.procedural(slug));
   const cached = loadedCovers.get(slug);
   if (cached) return cached;
 
-  const result = Promise.all(entries.map(async ([name, url]) => [name, await renderExternalLayer(url)] as const))
-    .then((layers) => {
-      const overrides = Object.fromEntries(layers) as Partial<CoverArt>;
-      const base = overrides.base ?? procedural.base;
-      const illustration = overrides.illustration ?? procedural.illustration;
-      const foil = overrides.foil ?? procedural.foil;
-      let composite = overrides.composite;
-      if (!composite) {
-        const composition = surface();
-        for (const layer of [base, illustration, foil]) composition.ctx.drawImage(layer, 0, 0);
-        composite = composition.canvas;
-      }
-      return { base, illustration, foil, height: overrides.height ?? procedural.height, composite };
-    });
+  const result = Promise.all([
+    loadCoverBase(slug, priority),
+    maps.illustration ? renderExternalLayer(maps.illustration, priority) : Promise.resolve(undefined),
+    maps.foil ? renderExternalLayer(maps.foil, priority) : Promise.resolve(undefined),
+    maps.height ? renderExternalLayer(maps.height, "low") : Promise.resolve(undefined),
+  ]).then(([baseMap, reliefMap, foilMap, heightMap]) => {
+    const fallback = !baseMap ? manifest.procedural(slug) : placeholderCoverArt(slug);
+    const base = baseMap ?? fallback.base;
+    const illustration = reliefMap ?? fallback.illustration;
+    const foil = foilMap ?? fallback.foil;
+    const height = heightMap ?? fallback.height;
+    return { base, illustration, foil, height, composite: base };
+  });
   loadedCovers.set(slug, result);
   return result;
+}
+
+/**
+ * Staged network preloading: prioritizes the active card's base.webp first (~90 KB) so it appears
+ * almost instantaneously on mobile, then streams its PBR layers, inside vignette, and rear cards.
+ */
+export function preloadTemplates(activeSlug: TemplateSlug, allSlugs: readonly TemplateSlug[]) {
+  void loadCoverBase(activeSlug, "high").then(() => {
+    void loadCoverArt(activeSlug, "high");
+    void loadInsideArt(activeSlug, "auto");
+    for (const slug of allSlugs) {
+      if (slug !== activeSlug) void loadCoverBase(slug, "low");
+    }
+  });
 }
 
 const paperPalette = {

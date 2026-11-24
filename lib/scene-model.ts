@@ -1,5 +1,8 @@
 import * as THREE from "three";
-import { COVER_MANIFEST, coverArt, insideArt, insideEmblemArt, linerArt, loadCoverArt, loadInsideArt, paperMaps, STICKER_BASE_SIZE, stickerArt } from "./art";
+import {
+  COVER_MANIFEST, coverArt, getCachedCoverBase, insideArt, insideEmblemArt, linerArt,
+  loadCoverArt, loadCoverBase, loadInsideArt, paperMaps, placeholderCoverArt, STICKER_BASE_SIZE, stickerArt,
+} from "./art";
 import { TEMPLATES, type CardDraft, type PaperId, type TemplateSlug } from "./cards";
 import { createCoverLivingFX, createFoilSheen } from "./scene-fx";
 
@@ -17,6 +20,19 @@ export function imageTexture(canvas: HTMLCanvasElement, color = true, anisotropy
   if (color) texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = anisotropy;
   return texture;
+}
+
+/**
+ * Replaces a material's map with a fresh CanvasTexture and disposes the old one.
+ * Required in WebGL2 (Three.js r180+) whenever canvas dimensions change (e.g. 64x85
+ * placeholder -> 900x1200 WebP), because texStorage2D allocates immutable texture sizes.
+ */
+function replaceMap(material: THREE.MeshPhysicalMaterial, canvas: HTMLCanvasElement) {
+  const previous = material.map;
+  if (previous && previous.image === canvas) return;
+  material.map = imageTexture(canvas);
+  material.needsUpdate = true;
+  previous?.dispose();
 }
 
 function studioMaterial(options: THREE.MeshPhysicalMaterialParameters) {
@@ -56,11 +72,21 @@ function heightNormal(source: HTMLCanvasElement, strength: number, channel = 0) 
 }
 
 export function buildPaperMaps() {
-  const papers: PaperId[] = ["watercolor", "kraft", "pearl"];
-  return new Map(papers.map((id) => {
-    const maps = paperMaps(id);
-    return [id, { normal: imageTexture(maps.normal, false), roughness: imageTexture(maps.roughness, false) }];
-  }));
+  const cache = new Map<PaperId, { normal: THREE.CanvasTexture; roughness: THREE.CanvasTexture }>();
+  return {
+    get(id: PaperId) {
+      let entry = cache.get(id);
+      if (!entry) {
+        const maps = paperMaps(id);
+        entry = { normal: imageTexture(maps.normal, false), roughness: imageTexture(maps.roughness, false) };
+        cache.set(id, entry);
+      }
+      return entry;
+    },
+    values() {
+      return cache.values();
+    },
+  };
 }
 
 export type ScenePaperMaps = ReturnType<typeof buildPaperMaps>;
@@ -72,9 +98,16 @@ function cardPlane(material: THREE.Material, x: number, z: number, back = false)
   return mesh;
 }
 
-export function buildBook(slug: TemplateSlug, draft: CardDraft, allMaps: ScenePaperMaps, onMaterialChange: () => void) {
+export function buildBook(
+  slug: TemplateSlug,
+  draft: CardDraft,
+  allMaps: ScenePaperMaps,
+  onMaterialChange: () => void,
+  isPriority = true,
+) {
   const template = TEMPLATES.find((item) => item.slug === slug)!;
-  const artwork = coverArt(slug);
+  const hasExternalMaps = Object.keys(COVER_MANIFEST[slug].maps ?? {}).length > 0;
+  const artwork = hasExternalMaps ? placeholderCoverArt(slug) : coverArt(slug);
   const root = new THREE.Group();
   const hinge = new THREE.Group();
   hinge.position.set(-HALF_CARD, 0, COVER_CENTER);
@@ -92,8 +125,9 @@ export function buildBook(slug: TemplateSlug, draft: CardDraft, allMaps: ScenePa
   spine.position.set(-HALF_CARD + .017, 0, COVER_CENTER / 2);
   root.add(spine);
 
-  const exterior = studioMaterial({ map: imageTexture(artwork.base), roughness: .81 });
-  const reliefNormal = heightNormal(artwork.height, .67);
+  const initialBase = (hasExternalMaps && getCachedCoverBase(slug)) || artwork.base;
+  const exterior = studioMaterial({ map: imageTexture(initialBase), roughness: .81 });
+  let reliefNormal: THREE.CanvasTexture | null = hasExternalMaps ? null : heightNormal(artwork.height, .67);
   const relief = studioMaterial({
     map: imageTexture(artwork.illustration), normalMap: reliefNormal, normalScale: new THREE.Vector2(.52, .52),
     transparent: true, depthWrite: false, alphaTest: .025, clearcoat: .21, clearcoatRoughness: .57, roughness: .73,
@@ -110,23 +144,10 @@ export function buildBook(slug: TemplateSlug, draft: CardDraft, allMaps: ScenePa
   livingFX.group.position.set(HALF_CARD, 0, CARD_DEPTH / 2 + .017);
 
   let active = true;
-  if (Object.keys(COVER_MANIFEST[slug].maps ?? {}).length) {
-    void loadCoverArt(slug).then((replacement) => {
-      if (!active) return;
-      for (const [material, canvas] of [[exterior, replacement.base], [relief, replacement.illustration], [foil, replacement.foil]] as const) {
-        material.map!.image = canvas;
-        material.map!.needsUpdate = true;
-      }
-      foilSheen.setMap(foil.map!);
-      if (replacement.height !== artwork.height) {
-        reliefNormal.dispose();
-        const nextNormal = heightNormal(replacement.height, .72);
-        relief.normalMap = foil.normalMap = nextNormal;
-        relief.needsUpdate = foil.needsUpdate = true;
-      }
-      onMaterialChange();
-    }).catch(() => undefined);
-  }
+  let baseReady = !hasExternalMaps || Boolean(getCachedCoverBase(slug));
+  let wantsInside = isPriority;
+  let insideRequested = false;
+
   const panel = cardPlane(exterior, HALF_CARD, CARD_DEPTH / 2 + .001);
   const illustration = cardPlane(relief, HALF_CARD, CARD_DEPTH / 2 + .008);
   const gilding = cardPlane(foil, HALF_CARD, CARD_DEPTH / 2 + .012);
@@ -208,14 +229,50 @@ export function buildBook(slug: TemplateSlug, draft: CardDraft, allMaps: ScenePa
   let rightKey = JSON.stringify([themedDraft.paper, themedDraft.recipient, themedDraft.message, themedDraft.sender, themedDraft.font]);
   let stickersKey = "";
 
-  void loadInsideArt(slug).then((img) => {
-    if (!active || !img) return;
-    leftMaterial.map!.image = insideArt({ ...latestDraft, template: slug }, "left", false, false);
-    leftMaterial.map!.needsUpdate = true;
-    onMaterialChange();
-  }).catch(() => undefined);
+  // Only fetch inside.webp after the active card's base.webp has painted; defer rear cards until selected.
+  function ensureInsideLoaded() {
+    if (insideRequested) return;
+    insideRequested = true;
+    void loadInsideArt(slug, isPriority ? "auto" : "low").then((img) => {
+      if (!active || !img) return;
+      leftMaterial.map!.image = insideArt({ ...latestDraft, template: slug }, "left", false, false);
+      leftMaterial.map!.needsUpdate = true;
+      onMaterialChange();
+    }).catch(() => undefined);
+  }
 
-  function update(next: CardDraft, selected?: string | null) {
+  if (hasExternalMaps) {
+    const priority = isPriority ? "high" : "low";
+    // Stage 1: Paint crisp base.webp the millisecond it arrives (~90 KB) without waiting for PBR layers.
+    void loadCoverBase(slug, priority).then((baseCanvas) => {
+      if (!active) return;
+      baseReady = true;
+      if (baseCanvas) {
+        replaceMap(exterior, baseCanvas);
+        onMaterialChange();
+      }
+      if (wantsInside) ensureInsideLoaded();
+      // Stage 2: Stream relief, metallic foil, and height normal map right after base is visible.
+      void loadCoverArt(slug, priority).then((replacement) => {
+        if (!active) return;
+        replaceMap(exterior, replacement.base);
+        replaceMap(relief, replacement.illustration);
+        replaceMap(foil, replacement.foil);
+        foilSheen.setMap(foil.map!);
+        if (replacement.height !== artwork.height) {
+          reliefNormal?.dispose();
+          reliefNormal = heightNormal(replacement.height, .72);
+          relief.normalMap = foil.normalMap = reliefNormal;
+          relief.needsUpdate = foil.needsUpdate = true;
+        }
+        onMaterialChange();
+      }).catch(() => undefined);
+    }).catch(() => undefined);
+  } else if (isPriority) {
+    ensureInsideLoaded();
+  }
+
+  function applyDraft(next: CardDraft, selected?: string | null) {
     latestDraft = { ...next, template: slug };
     if (paper !== next.paper) {
       if (paper !== undefined) {
@@ -258,11 +315,17 @@ export function buildBook(slug: TemplateSlug, draft: CardDraft, allMaps: ScenePa
     }
   }
 
+  function update(next: CardDraft, selected?: string | null) {
+    wantsInside = true;
+    if (baseReady) ensureInsideLoaded();
+    applyDraft(next, selected);
+  }
+
   function refreshText(next: CardDraft) {
     // Face fonts can finish loading after the initial paint.
     leftKey = "";
     rightKey = "";
-    update(next);
+    applyDraft(next);
   }
 
   function animate(elapsed: number, yaw: number, pitch: number, openFraction: number, reduced: boolean) {
@@ -270,7 +333,7 @@ export function buildBook(slug: TemplateSlug, draft: CardDraft, allMaps: ScenePa
     livingFX.update(elapsed, openFraction, reduced);
   }
 
-  update(themedDraft);
+  applyDraft(themedDraft);
   return { slug, root, hinge, stickerGroup, rightInner, targets: [panel, leftInner, rightInner, backBoard], update, refreshText, animate, deactivate: () => { active = false; } };
 }
 

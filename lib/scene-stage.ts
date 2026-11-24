@@ -170,10 +170,10 @@ export function createStage(
     requestedPanY = THREE.MathUtils.clamp(requestedPanY, -maxY, maxY);
   }
 
-  function createBook(slug: TemplateSlug, draft: CardDraft) {
+  function createBook(slug: TemplateSlug, draft: CardDraft, isPriority = slug === activeSlug) {
     let entry = books.get(slug);
     if (!entry) {
-      const book = buildBook(slug, draft, allMaps, wake);
+      const book = buildBook(slug, draft, allMaps, wake, isPriority);
       const shadow = createShadow(.38);
       const contact = createShadow(.23);
       shadow.position.z = -5.2;

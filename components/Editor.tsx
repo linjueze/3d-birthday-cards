@@ -12,7 +12,7 @@ import { flushSync } from "react-dom";
 import CardScene from "@/components/CardScene";
 import { Brand, copyText, prepareSealSound, Stars, useMusic, useToast } from "@/components/Shared";
 import { CardThumb, StickerThumb } from "@/components/Thumbnails";
-import { loadCoverArt, STICKER_BASE_SIZE } from "@/lib/art";
+import { preloadTemplates, STICKER_BASE_SIZE } from "@/lib/art";
 import {
   defaultDraft, FONT_OPTIONS, isTemplateSlug, PAPER_OPTIONS, STICKERS, TEMPLATES, WISHES,
   type CardDraft, type Music, type StickerId, type TemplateSlug,
@@ -120,7 +120,8 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
   useEffect(() => {
     setMinimum(localDateValue());
     setBaseUrl(window.location.origin);
-    for (const item of TEMPLATES) void loadCoverArt(item.slug);
+    preloadTemplates(draft.template, TEMPLATES.map((item) => item.slug));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
