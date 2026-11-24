@@ -40,6 +40,28 @@ export const COVER_MANIFEST: Record<TemplateSlug, CoverMaterialManifest> = {
 
 const covers = new Map<TemplateSlug, CoverArt>();
 const loadedCovers = new Map<TemplateSlug, Promise<CoverArt>>();
+const insideImages = new Map<TemplateSlug, HTMLImageElement>();
+const loadedInside = new Map<TemplateSlug, Promise<HTMLImageElement | undefined>>();
+
+export function getInsideImage(slug: TemplateSlug): HTMLImageElement | undefined {
+  return insideImages.get(slug);
+}
+
+export function loadInsideArt(slug: TemplateSlug): Promise<HTMLImageElement | undefined> {
+  const existing = loadedInside.get(slug);
+  if (existing) return existing;
+  const promise = new Promise<HTMLImageElement | undefined>((resolve) => {
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.src = withBasePath(`/assets/cards/${slug}/inside.webp`);
+    image.decode().then(() => {
+      insideImages.set(slug, image);
+      resolve(image);
+    }).catch(() => resolve(undefined));
+  });
+  loadedInside.set(slug, promise);
+  return promise;
+}
 
 function heightLayer(ctx: CanvasRenderingContext2D, mask: HTMLCanvasElement, color: string) {
   const layer = surface();
@@ -100,6 +122,7 @@ async function renderExternalLayer(url: string) {
 }
 
 export function loadCoverArt(slug: TemplateSlug): Promise<CoverArt> {
+  void loadInsideArt(slug);
   const manifest = COVER_MANIFEST[slug];
   const procedural = manifest.procedural(slug);
   const entries = Object.entries(manifest.maps ?? {}) as [keyof CoverArt, string][];
@@ -189,9 +212,6 @@ function interiorPaper(id: PaperId, side: "left" | "right") {
     ctx.restore();
     drawPath(ctx, "M 69 71 H 699 V 953 H 69Z", undefined, "#d6bd957e", 1.2);
     drawPath(ctx, "M 76 78 H 692 V 946 H 76Z", undefined, "#fff7e791", 1);
-  } else {
-    drawPath(ctx, "M 57 59 H 711 V 965 H 57Z", undefined, "#c5aa83a0", 1.8);
-    drawPath(ctx, "M 69 71 H 699 V 953 H 69Z", undefined, "#fff6dcaf", 1.4);
   }
   drawPaperGrain(ctx, ART_WIDTH, ART_HEIGHT, 12700, 6619, palette.grain);
   const gutter = side === "left" ? gradient(ctx, 635, 0, 768, 0, [[0,"#614b3100"],[.84,"#62432e13"],[1,"#654a2e24"]])
@@ -221,44 +241,76 @@ function engravedMark(ctx: CanvasRenderingContext2D, slug: TemplateSlug, x: numb
   ctx.restore();
 }
 
+const insideMottos: Record<TemplateSlug, string> = {
+  "candlelight-cake": "A sweet slice for your new year",
+  "starry-wish": "All your wishes, safely kept",
+  "bloom-garden": "Picked fresh for your special day",
+  "confetti-atelier": "Cheers to another wonderful year",
+};
+
+function leftCornerFiligree(ctx: CanvasRenderingContext2D, x: number, y: number, flipX: number, flipY: number, tint: string | CanvasGradient) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(flipX * .74, flipY * .74);
+  drawPath(ctx, "M 82 0 C 54 0 45 4 38 20 C 28 42 45 47 53 37 C 58 31 51 25 47 29 M 0 82 C 0 54 4 45 20 38 C 42 28 47 45 37 53 C 31 58 25 51 29 47 M 8 65 C 5 40 17 22 40 15 C 60 9 72 15 80 26 M 65 8 C 40 5 22 17 15 40 C 9 60 15 72 26 80", undefined, tint, 2.2);
+  drawPath(ctx, "M 13 23 C 29 7 41 14 34 21 C 29 25 23 21 13 23 M 23 13 C 7 29 14 41 21 34 C 25 29 21 23 23 13", tint);
+  for (const [cx, cy] of [[10, 10], [47, 12], [12, 47]]) ellipse(ctx, cx, cy, 2.3, 2.3, tint);
+  ctx.restore();
+}
+
+function insideArchPath(inset = 0) {
+  const left = 132 + inset;
+  const right = 636 - inset;
+  const top = 192 + inset;
+  const base = 716 - inset;
+  const r = (right - left) / 2;
+  return `M ${left} ${base} L ${left} ${top + r} A ${r} ${r} 0 0 1 ${right} ${top + r} L ${right} ${base} Z`;
+}
+
 function dateStamp(ctx: CanvasRenderingContext2D, date: string, color: string) {
   ctx.save();
-  ctx.translate(384, 766);
-  ctx.rotate(-.08);
+  ctx.translate(384, 868);
+  ctx.rotate(-.035);
   ctx.strokeStyle = color;
-  ctx.lineWidth = 1.6;
-  ctx.setLineDash([4, 3]);
-  ctx.strokeRect(-126, -33, 252, 65);
-  ctx.setLineDash([]);
-  ctx.strokeRect(-120, -27, 240, 53);
-  ctx.textBaseline = "middle";
   ctx.fillStyle = color;
-  ctx.font = '23px "Inter", Arial, sans-serif';
-  spacedText(ctx, date.replaceAll("-", " · "), 0, 1, 2.2);
+  ctx.lineWidth = 1.6;
+  // Vintage double-framed date box
+  ctx.strokeRect(-146, -26, 224, 52);
+  ctx.lineWidth = 1.1;
+  ctx.strokeRect(-140, -20, 212, 40);
+  ctx.textBaseline = "middle";
+  ctx.font = '22px "Inter", Georgia, serif';
+  spacedText(ctx, date.replaceAll("-", " · "), -34, 1, 2.2);
+  // Overlapping circular postmark seal + 3 wavy cancellation lines
+  ctx.lineWidth = 1.4;
+  ellipse(ctx, 94, 0, 31, 31, undefined, color, 1.5);
+  ellipse(ctx, 94, 0, 23, 23, undefined, color, 1.0);
+  star(ctx, 94, 0, 8, color, 4, .82);
+  for (const offsetY of [-10, 0, 10]) {
+    drawPath(ctx, `M 127 ${offsetY} Q 139 ${offsetY - 5} 151 ${offsetY} T 175 ${offsetY}`, undefined, color, 1.2);
+  }
   ctx.restore();
 }
 
 function drawEmblem(ctx: CanvasRenderingContext2D, draft: CardDraft) {
-  const palette = paperPalette[draft.paper];
-  const metallic = gold(ctx, 291, 631);
-  const centerX = 384;
-  const centerY = 484;
-  const emblem = ctx.createRadialGradient(326, 410, 25, centerX, centerY, 170);
-  emblem.addColorStop(0, palette.start);
-  emblem.addColorStop(.82, palette.start);
-  emblem.addColorStop(1, palette.end);
-  ellipse(ctx, centerX, centerY + 5, 174, 178, "#8b674638");
-  ellipse(ctx, centerX, centerY, 172, 174, emblem, metallic, 2.6);
-  ellipse(ctx, centerX, centerY, 156, 158, undefined, "#ffffea9a", 2.6);
-  ellipse(ctx, centerX, centerY, 150, 152, undefined, metallic, 1.4);
-  for (let index = 0; index < 56; index++) {
-    const radians = index * Math.PI / 28;
-    const x = centerX + Math.cos(radians) * 137;
-    const y = centerY + Math.sin(radians) * 139;
-    ellipse(ctx, x, y, index % 4 === 0 ? 2.2 : 1.3, index % 4 === 0 ? 2.2 : 1.3, metallic);
+  const metallic = gold(ctx, 64, 960);
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  // Ornate double antique-gold frontispiece frame + 4 botanical filigree corners
+  drawPath(ctx, "M 54 56 H 714 V 968 H 54 Z", undefined, metallic, 2.5);
+  drawPath(ctx, "M 66 68 H 702 V 956 H 66 Z", undefined, metallic, 1.25);
+  for (const [x, y, fx, fy] of [[68, 70, 1, 1], [700, 70, -1, 1], [68, 954, 1, -1], [700, 954, -1, -1]]) {
+    leftCornerFiligree(ctx, x, y, fx, fy, metallic);
   }
-  engravedMark(ctx, draft.template, centerX, centerY - 4, 206, metallic);
-  for (const [x, y, radius] of [[384,286,12],[384,682,12],[186,484,12],[582,484,12],[480,386,8],[292,386,8],[292,578,8],[480,578,8]]) star(ctx, x, y, radius, metallic, 4, .84);
+  // Blind-debossed arched window rim (shadow bevel + highlight bevel for 3D normal lighting)
+  drawPath(ctx, insideArchPath(0), undefined, draft.paper === "kraft" ? "#8c654295" : "#bfa88a90", 3.2);
+  drawPath(ctx, insideArchPath(3), undefined, "#fffaf0d8", 2.2);
+  // Delicate corner micro-stars framing the arch
+  for (const [x, y, r] of [[156, 214, 7], [612, 214, 7], [384, 166, 9]]) {
+    star(ctx, x, y, r, metallic, 4, .82);
+  }
+  ctx.restore();
 }
 
 export function insideEmblemArt(draft: CardDraft) {
@@ -269,14 +321,56 @@ export function insideEmblemArt(draft: CardDraft) {
 
 function insideLeft(ctx: CanvasRenderingContext2D, draft: CardDraft, includeEmblem: boolean) {
   const palette = paperPalette[draft.paper];
-  if (includeEmblem) drawEmblem(ctx, draft);
+  const metallic = gold(ctx, 110, 860);
+
+  // Subtle recessed cotton glow inside the arched window
   ctx.save();
-  ctx.fillStyle = palette.ink;
-  ctx.globalAlpha = .68;
-  ctx.font = '22px Georgia, serif';
-  spacedText(ctx, "WITH LOVE", 384, 240, 6);
+  const archClip = new Path2D(insideArchPath(2));
+  ctx.fillStyle = draft.paper === "kraft" ? "rgba(252, 232, 200, .42)" : "rgba(255, 253, 247, .64)";
+  ctx.fill(archClip);
+
+  const vignette = insideImages.get(draft.template);
+  if (vignette) {
+    ctx.clip(archClip);
+    ctx.globalCompositeOperation = "multiply";
+    // Fit the 3:4 watercolor vignette comfortably inside the 504x524 arched window
+    const drawH = 516;
+    const drawW = drawH * (3 / 4);
+    ctx.drawImage(vignette, 384 - drawW / 2, 198, drawW, drawH);
+    ctx.globalCompositeOperation = "source-over";
+  } else {
+    // Graceful instant placeholder while inside.webp finishes decoding (~30ms)
+    engravedMark(ctx, draft.template, 384, 468, 210, metallic);
+  }
   ctx.restore();
-  if (draft.birthday) dateStamp(ctx, draft.birthday, draft.paper === "kraft" ? "#8b533c" : "#a06959");
+
+  if (includeEmblem) drawEmblem(ctx, draft);
+
+  // Editorial serif header
+  ctx.save();
+  ctx.fillStyle = draft.paper === "kraft" ? "#6c4830" : "#96794f";
+  ctx.font = '24px "Cormorant Garamond", Georgia, serif';
+  spacedText(ctx, "WITH LOVE", 384, 134, 7);
+  ctx.restore();
+
+  // Theme-specific italic calligraphy keepsake motto beneath the arch
+  ctx.save();
+  ctx.fillStyle = draft.paper === "kraft" ? "#63412c" : "#8f6f46";
+  ctx.textAlign = "center";
+  ctx.font = 'italic 33px "Cormorant Garamond", Georgia, serif';
+  ctx.fillText(insideMottos[draft.template], 384, 782, 560);
+  ctx.restore();
+
+  // Vintage wavy birthday postal stamp (shown dynamically when a birthday date is entered)
+  if (draft.birthday) {
+    dateStamp(ctx, draft.birthday, draft.paper === "kraft" ? "#7e4632" : "#9f6859");
+  } else {
+    ctx.save();
+    ctx.fillStyle = palette.ink;
+    ctx.globalAlpha = .45;
+    star(ctx, 384, 858, 10, metallic, 4, .82);
+    ctx.restore();
+  }
 }
 
 const fontFamily: Record<FontId, string> = {

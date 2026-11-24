@@ -288,7 +288,7 @@ export function createStage(
     const timing = (envelopePhase === "packing" || envelopePhase === "breaking") && (activeEnvelope !== envelopePhase || !completed);
     const visible = inViewport && !document.hidden && width > 0 && height > 0;
     if (!visible && !timing) return;
-    const idleInterval = reducedMotion ? Number.POSITIVE_INFINITY : width < 500 ? 100 : 80;
+    const idleInterval = reducedMotion ? Number.POSITIVE_INFINITY : width < 500 ? 33 : 20;
     if (!initial && !timing && now > renderUntil && now - previousTime < idleInterval) return;
     const dt = initial ? .05 : Math.min(.11, (now - previousTime) / 1000);
     previousTime = now;
@@ -399,6 +399,7 @@ export function createStage(
       const visible = active ? displayBook : gallery && open < .76;
       book.root.visible = shadow.visible = contact.visible = visible;
       if (!visible) continue;
+      book.animate(elapsed, active ? yaw : sideSlot.yaw * .3, active ? pitch : 0, active ? open : 0, reducedMotion);
 
       if (gallery) {
         const mobileX = mobile ? .86 : 1;

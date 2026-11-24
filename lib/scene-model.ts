@@ -1,6 +1,7 @@
 import * as THREE from "three";
-import { COVER_MANIFEST, coverArt, insideArt, insideEmblemArt, linerArt, loadCoverArt, paperMaps, STICKER_BASE_SIZE, stickerArt } from "./art";
+import { COVER_MANIFEST, coverArt, insideArt, insideEmblemArt, linerArt, loadCoverArt, loadInsideArt, paperMaps, STICKER_BASE_SIZE, stickerArt } from "./art";
 import { TEMPLATES, type CardDraft, type PaperId, type TemplateSlug } from "./cards";
+import { createCoverLivingFX, createFoilSheen } from "./scene-fx";
 
 export const CARD_WIDTH = 3.12;
 export const CARD_HEIGHT = 4.16;
@@ -102,6 +103,12 @@ export function buildBook(slug: TemplateSlug, draft: CardDraft, allMaps: ScenePa
     transparent: true, depthWrite: false, alphaTest: .035, clearcoat: .72, clearcoatRoughness: .2,
     roughness: .32, metalness: .48, emissive: new THREE.Color("#8a6226"), emissiveIntensity: .08,
   });
+  const isDarkCover = slug === "starry-wish" || slug === "confetti-atelier";
+  const foilSheen = createFoilSheen(CARD_WIDTH, CARD_HEIGHT, foil.map!, isDarkCover);
+  foilSheen.mesh.position.set(HALF_CARD, 0, CARD_DEPTH / 2 + .0145);
+  const livingFX = createCoverLivingFX(slug);
+  livingFX.group.position.set(HALF_CARD, 0, CARD_DEPTH / 2 + .017);
+
   let active = true;
   if (Object.keys(COVER_MANIFEST[slug].maps ?? {}).length) {
     void loadCoverArt(slug).then((replacement) => {
@@ -110,6 +117,7 @@ export function buildBook(slug: TemplateSlug, draft: CardDraft, allMaps: ScenePa
         material.map!.image = canvas;
         material.map!.needsUpdate = true;
       }
+      foilSheen.setMap(foil.map!);
       if (replacement.height !== artwork.height) {
         reliefNormal.dispose();
         const nextNormal = heightNormal(replacement.height, .72);
@@ -124,7 +132,7 @@ export function buildBook(slug: TemplateSlug, draft: CardDraft, allMaps: ScenePa
   const gilding = cardPlane(foil, HALF_CARD, CARD_DEPTH / 2 + .012);
   illustration.renderOrder = 2;
   gilding.renderOrder = 3;
-  hinge.add(panel, illustration, gilding);
+  hinge.add(panel, illustration, gilding, foilSheen.mesh, livingFX.group);
   const backing = studioMaterial({ color: template.color, roughness: .8 });
   root.add(cardPlane(backing, 0, -CARD_DEPTH / 2 - .001, true));
 
@@ -195,14 +203,23 @@ export function buildBook(slug: TemplateSlug, draft: CardDraft, allMaps: ScenePa
   }
 
   let paper: PaperId;
+  let latestDraft: CardDraft = themedDraft;
   let leftKey = JSON.stringify([themedDraft.paper, themedDraft.birthday]);
   let rightKey = JSON.stringify([themedDraft.paper, themedDraft.recipient, themedDraft.message, themedDraft.sender, themedDraft.font]);
   let stickersKey = "";
 
+  void loadInsideArt(slug).then((img) => {
+    if (!active || !img) return;
+    leftMaterial.map!.image = insideArt({ ...latestDraft, template: slug }, "left", false, false);
+    leftMaterial.map!.needsUpdate = true;
+    onMaterialChange();
+  }).catch(() => undefined);
+
   function update(next: CardDraft, selected?: string | null) {
+    latestDraft = { ...next, template: slug };
     if (paper !== next.paper) {
       if (paper !== undefined) {
-        const emblem = insideEmblemArt(next);
+        const emblem = insideEmblemArt(latestDraft);
         emblemMaterial.map!.image = emblem;
         emblemMaterial.map!.needsUpdate = true;
         emblemMaterial.normalMap!.dispose();
@@ -222,33 +239,39 @@ export function buildBook(slug: TemplateSlug, draft: CardDraft, allMaps: ScenePa
       exterior.color.set(paper === "kraft" ? "#f3dfc6" : "#ffffff");
       backing.color.set(template.color).multiply(new THREE.Color(paper === "kraft" ? "#ecd6b6" : "#ffffff"));
     }
-    const nextLeftKey = JSON.stringify([next.paper, next.birthday]);
+    const nextLeftKey = JSON.stringify([latestDraft.paper, latestDraft.birthday]);
     if (nextLeftKey !== leftKey) {
       leftKey = nextLeftKey;
-      leftMaterial.map!.image = insideArt(next, "left", false, false);
+      leftMaterial.map!.image = insideArt(latestDraft, "left", false, false);
       leftMaterial.map!.needsUpdate = true;
     }
-    const nextRightKey = JSON.stringify([next.paper, next.recipient, next.message, next.sender, next.font]);
+    const nextRightKey = JSON.stringify([latestDraft.paper, latestDraft.recipient, latestDraft.message, latestDraft.sender, latestDraft.font]);
     if (nextRightKey !== rightKey) {
       rightKey = nextRightKey;
-      rightMaterial.map!.image = insideArt(next, "right", false);
+      rightMaterial.map!.image = insideArt(latestDraft, "right", false);
       rightMaterial.map!.needsUpdate = true;
     }
-    const nextStickersKey = JSON.stringify([next.stickers, selected]);
+    const nextStickersKey = JSON.stringify([latestDraft.stickers, selected]);
     if (nextStickersKey !== stickersKey) {
       stickersKey = nextStickersKey;
-      updateStickers(next.stickers, selected);
+      updateStickers(latestDraft.stickers, selected);
     }
   }
 
   function refreshText(next: CardDraft) {
     // Face fonts can finish loading after the initial paint.
+    leftKey = "";
     rightKey = "";
     update(next);
   }
 
+  function animate(elapsed: number, yaw: number, pitch: number, openFraction: number, reduced: boolean) {
+    foilSheen.update(elapsed, yaw, pitch, openFraction, reduced);
+    livingFX.update(elapsed, openFraction, reduced);
+  }
+
   update(themedDraft);
-  return { slug, root, hinge, stickerGroup, rightInner, targets: [panel, leftInner, rightInner, backBoard], update, refreshText, deactivate: () => { active = false; } };
+  return { slug, root, hinge, stickerGroup, rightInner, targets: [panel, leftInner, rightInner, backBoard], update, refreshText, animate, deactivate: () => { active = false; } };
 }
 
 function selectionTexture() {

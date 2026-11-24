@@ -2,7 +2,7 @@
 
 import { RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type RefObject } from "react";
-import { COVER_MANIFEST, coverArt, insideArt, linerArt, loadCoverArt, STICKER_BASE_SIZE, stickerArt } from "@/lib/art";
+import { COVER_MANIFEST, coverArt, insideArt, linerArt, loadCoverArt, loadInsideArt, STICKER_BASE_SIZE, stickerArt } from "@/lib/art";
 import { TEMPLATES, type TemplateSlug } from "@/lib/cards";
 import { createStage, FALLBACK_TIMINGS, GALLERY_SLOTS, galleryOffset, MAX_ZOOM, MIN_ZOOM, type SceneHit, type SceneProps, type SceneStage } from "@/lib/scene-stage";
 import "@/lib/scene-fallback.css";
@@ -50,8 +50,9 @@ function Fallback({ draft, mode, envelope, open, sealProgress, selectedSticker }
     setMounted(true);
     const refresh = () => setFontVersion((version) => version + 1);
     document.fonts?.addEventListener("loadingdone", refresh);
+    void loadInsideArt(draft.template).then((img) => { if (img) refresh(); });
     return () => document.fonts?.removeEventListener("loadingdone", refresh);
-  }, []);
+  }, [draft.template]);
 
   if (!mounted) return null;
   const gallery = mode === "gallery";
@@ -97,7 +98,7 @@ function Fallback({ draft, mode, envelope, open, sealProgress, selectedSticker }
           <div className="scene-fallback-cover">
             <div className="scene-fallback-front"><FallbackCover slug={draft.template} /></div>
             <div className="scene-fallback-left">
-              {open && !envelopeVisible && <PaintedCanvas image={insideArt(draft, "left", false)} />}
+              {open && !envelopeVisible && <PaintedCanvas key={fontVersion} image={insideArt(draft, "left", false)} />}
             </div>
           </div>
         </div>
