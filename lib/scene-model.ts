@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import {
   COVER_MANIFEST, coverArt, getInitialCoverBase, insideArt, insideEmblemArt, isFullCoverBaseCached,
-  linerArt, loadCoverArt, loadCoverBase, loadCoverPreview, loadInsideArt, paperMaps, placeholderCoverArt,
-  STICKER_BASE_SIZE, stickerArt,
+  linerArt, loadCoverArt, loadCoverBase, loadCoverPreview, loadInsideArt, loadInsidePreview, paperMaps,
+  placeholderCoverArt, STICKER_BASE_SIZE, stickerArt,
 } from "./art";
 import { TEMPLATES, type CardDraft, type PaperId, type TemplateSlug } from "./cards";
 import { createCoverLivingFX, createFoilSheen } from "./scene-fx";
@@ -264,10 +264,17 @@ export function buildBook(
   let rightKey = JSON.stringify([themedDraft.paper, themedDraft.recipient, themedDraft.message, themedDraft.sender, themedDraft.font]);
   let stickersKey = "";
 
+  let fullInsideApplied = false;
+  void loadInsidePreview(slug).then((previewImg) => {
+    if (!active || fullInsideApplied || !previewImg) return;
+    replaceMap(leftMaterial, insideArt({ ...latestDraft, template: slug }, "left", false, false));
+    onMaterialChange();
+  }).catch(() => undefined);
+
   void loadInsideArt(slug).then((img) => {
     if (!active || !img) return;
-    leftMaterial.map!.image = insideArt({ ...latestDraft, template: slug }, "left", false, false);
-    leftMaterial.map!.needsUpdate = true;
+    fullInsideApplied = true;
+    replaceMap(leftMaterial, insideArt({ ...latestDraft, template: slug }, "left", false, false));
     onMaterialChange();
   }).catch(() => undefined);
 
@@ -298,8 +305,7 @@ export function buildBook(
     const nextLeftKey = JSON.stringify([latestDraft.paper, latestDraft.birthday]);
     if (nextLeftKey !== leftKey) {
       leftKey = nextLeftKey;
-      leftMaterial.map!.image = insideArt(latestDraft, "left", false, false);
-      leftMaterial.map!.needsUpdate = true;
+      replaceMap(leftMaterial, insideArt(latestDraft, "left", false, false));
     }
     const nextRightKey = JSON.stringify([latestDraft.paper, latestDraft.recipient, latestDraft.message, latestDraft.sender, latestDraft.font]);
     if (nextRightKey !== rightKey) {

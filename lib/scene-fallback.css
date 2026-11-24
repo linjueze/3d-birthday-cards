@@ -76,6 +76,7 @@
 }
 .scene-fallback-cover {
   transform-origin: left;
+  -webkit-transform-style: preserve-3d;
   transform-style: preserve-3d;
   transition: transform .78s cubic-bezier(.2,.76,.25,1);
 }
@@ -84,6 +85,7 @@
 }
 .scene-fallback-front,
 .scene-fallback-left {
+  -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
 }
 .scene-fallback-left {

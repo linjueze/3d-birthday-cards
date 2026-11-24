@@ -2,7 +2,7 @@ import type { CardDraft, FontId, PaperId, TemplateSlug } from "./cards";
 import { coverBase, coverFoil, coverIllustration, coverPalette, drawPaperGrain } from "./art-covers";
 import { ART_HEIGHT, ART_WIDTH, drawPath, ellipse, gold, gradient, randomFrom, spacedText, star, surface } from "./art-ornaments";
 import { STICKER_BASE_SIZE, stickerArt } from "./art-stickers";
-import { COVER_PREVIEW_DATA_URI } from "./cover-previews";
+import { COVER_PREVIEW_DATA_URI, INSIDE_PREVIEW_DATA_URI } from "./cover-previews";
 import { withBasePath } from "./share-codec";
 
 export { COVER_PREVIEW_DATA_URI, STICKER_BASE_SIZE, stickerArt };
@@ -46,8 +46,16 @@ const loadedPreviews = new Map<TemplateSlug, Promise<HTMLCanvasElement | undefin
 const cachedBase = new Map<TemplateSlug, HTMLCanvasElement>();
 const loadedBase = new Map<TemplateSlug, Promise<HTMLCanvasElement | undefined>>();
 const loadedCovers = new Map<TemplateSlug, Promise<CoverArt>>();
-const insideImages = new Map<TemplateSlug, HTMLImageElement>();
-const loadedInside = new Map<TemplateSlug, Promise<HTMLImageElement | undefined>>();
+const insidePreviews = new Map<TemplateSlug, HTMLCanvasElement>();
+const loadedInsidePreviews = new Map<TemplateSlug, Promise<HTMLCanvasElement | undefined>>();
+const insideImages = new Map<TemplateSlug, HTMLCanvasElement>();
+const loadedInside = new Map<TemplateSlug, Promise<HTMLCanvasElement | undefined>>();
+
+function rasterizeImage(image: HTMLImageElement): HTMLCanvasElement {
+  const { canvas, ctx } = surface(image.naturalWidth, image.naturalHeight);
+  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
 
 function decodeImage(url: string, priority: "high" | "low" | "auto" = "auto"): Promise<HTMLImageElement | undefined> {
   return new Promise((resolve) => {
@@ -74,19 +82,43 @@ function decodeImage(url: string, priority: "high" | "low" | "auto" = "auto"): P
   });
 }
 
-export function getInsideImage(slug: TemplateSlug): HTMLImageElement | undefined {
-  return insideImages.get(slug);
+export function getInsideImage(slug: TemplateSlug): HTMLCanvasElement | undefined {
+  return insideImages.get(slug) ?? insidePreviews.get(slug);
 }
 
-export function loadInsideArt(slug: TemplateSlug): Promise<HTMLImageElement | undefined> {
+export function loadInsidePreview(slug: TemplateSlug): Promise<HTMLCanvasElement | undefined> {
+  const cached = insidePreviews.get(slug);
+  if (cached) return Promise.resolve(cached);
+  const existing = loadedInsidePreviews.get(slug);
+  if (existing) return existing;
+  const uri = INSIDE_PREVIEW_DATA_URI[slug];
+  if (!uri) return Promise.resolve(undefined);
+  const promise = decodeImage(uri).then((image) => {
+    if (!image) {
+      loadedInsidePreviews.delete(slug);
+      return undefined;
+    }
+    const canvas = rasterizeImage(image);
+    insidePreviews.set(slug, canvas);
+    return canvas;
+  });
+  loadedInsidePreviews.set(slug, promise);
+  return promise;
+}
+
+export function loadInsideArt(slug: TemplateSlug): Promise<HTMLCanvasElement | undefined> {
   const cached = insideImages.get(slug);
   if (cached) return Promise.resolve(cached);
   const existing = loadedInside.get(slug);
   if (existing) return existing;
   const promise = decodeImage(withBasePath(`/assets/cards/${slug}/inside.webp`), "auto").then((image) => {
-    if (image) insideImages.set(slug, image);
-    else loadedInside.delete(slug);
-    return image;
+    if (!image) {
+      loadedInside.delete(slug);
+      return undefined;
+    }
+    const canvas = rasterizeImage(image);
+    insideImages.set(slug, canvas);
+    return canvas;
   });
   loadedInside.set(slug, promise);
   return promise;
@@ -136,11 +168,12 @@ export function loadCoverPreview(slug: TemplateSlug): Promise<HTMLCanvasElement 
   return promise;
 }
 
-// Pre-decode all 4 tiny inline WebP cover previews (~2-4ms total, zero network) right at module load
-// so they are already sitting in memory synchronously when the 3D scene mounts.
+// Pre-decode all 4 tiny inline WebP cover & inside previews (~3-5ms total, zero network) right at
+// module load so they are already sitting in memory synchronously when the 3D scene mounts.
 if (typeof window !== "undefined") {
   for (const slug of Object.keys(COVER_PREVIEW_DATA_URI) as TemplateSlug[]) {
     void loadCoverPreview(slug);
+    void loadInsidePreview(slug);
   }
 }
 
@@ -417,27 +450,42 @@ export function insideEmblemArt(draft: CardDraft) {
   return canvas;
 }
 
+function traceInsideArch(ctx: CanvasRenderingContext2D, inset = 0) {
+  const left = 132 + inset;
+  const right = 636 - inset;
+  const top = 192 + inset;
+  const base = 716 - inset;
+  const r = (right - left) / 2;
+  const cx = (left + right) / 2;
+  const cy = top + r;
+  ctx.beginPath();
+  ctx.moveTo(left, base);
+  ctx.lineTo(left, cy);
+  ctx.arc(cx, cy, r, Math.PI, 0, false);
+  ctx.lineTo(right, base);
+  ctx.closePath();
+}
+
 function insideLeft(ctx: CanvasRenderingContext2D, draft: CardDraft, includeEmblem: boolean) {
   const palette = paperPalette[draft.paper];
   const metallic = gold(ctx, 110, 860);
 
-  // Subtle recessed cotton glow inside the arched window
+  // Subtle recessed cotton glow inside the arched window using standard Canvas2D path calls
+  // (avoids Path2D clip + multiply blend bugs on Android WeChat / X5 WebView Canvas2D).
   ctx.save();
-  const archClip = new Path2D(insideArchPath(2));
+  traceInsideArch(ctx, 2);
   ctx.fillStyle = draft.paper === "kraft" ? "rgba(252, 232, 200, .42)" : "rgba(255, 253, 247, .64)";
-  ctx.fill(archClip);
+  ctx.fill();
 
-  const vignette = insideImages.get(draft.template);
+  const vignette = insideImages.get(draft.template) ?? insidePreviews.get(draft.template);
   if (vignette) {
-    ctx.clip(archClip);
-    ctx.globalCompositeOperation = "multiply";
-    // Fit the 3:4 watercolor vignette comfortably inside the 504x524 arched window
+    ctx.clip();
+    // Fit the transparent RGBA watercolor vignette comfortably inside the 504x524 arched window
     const drawH = 516;
     const drawW = drawH * (3 / 4);
     ctx.drawImage(vignette, 384 - drawW / 2, 198, drawW, drawH);
-    ctx.globalCompositeOperation = "source-over";
   } else {
-    // Graceful instant placeholder while inside.webp finishes decoding (~30ms)
+    // Graceful fallback only if inline preview hasn't decoded yet (~2ms)
     engravedMark(ctx, draft.template, 384, 468, 210, metallic);
   }
   ctx.restore();
