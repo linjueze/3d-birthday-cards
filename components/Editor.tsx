@@ -593,7 +593,7 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
       >
         <div className="editor-panel-title">
           <div><h2>{drawer === "text" ? "写下祝福" : drawer === "cover" ? "挑选封面" : drawer === "paper" ? "挑选纸张" : drawer === "stickers" ? "点缀贴纸" : "搭配音乐"}</h2>
-            <p>{drawer === "text" ? "写在贺卡内页，等 TA 亲手翻开。" : drawer === "cover" ? "四种纸艺主题，点击更换封面。" : drawer === "paper" ? "拖动贺卡，可看到纸纹与光泽变化。" : drawer === "stickers" ? "点选添加，拖动内页上的贴纸以移动。" : "拆信后，收件人可以选择播放。"}</p></div>
+            <p>{drawer === "text" ? "写在贺卡内页，等 TA 亲手翻开。" : drawer === "cover" ? "七种纸艺主题，点击更换封面。" : drawer === "paper" ? "拖动贺卡，可看到纸纹与光泽变化。" : drawer === "stickers" ? "点选添加，拖动内页上的贴纸以移动。" : "拆信后，收件人可以选择播放。"}</p></div>
           <button type="button" className="icon-btn panel-close" aria-label="收起面板" onClick={() => { setDrawer(null); setSelectedSticker(null); }}><X size={18} /></button>
         </div>
         {drawer === "cover" && <div className="editor-cover-grid">
