@@ -165,6 +165,22 @@ button:disabled { cursor: default; }
 .option-row { display: flex; min-width: 0; align-items: center; gap: 11px; min-height: 64px; padding: 9px 11px; border: 1px solid #ece4e0; border-radius: 12px; text-align: left; color: #715a54; background: #fffdfb; }
 .option-row > span { flex: 1; min-width: 0; }
 .option-row > svg { flex: none; }
+.music-custom-card { display: grid; gap: 8px; padding: 10px 11px; border: 1px solid #ece4e0; border-radius: 12px; background: #fffdfb; }
+.music-custom-card.is-active { background: #f9eeec; border-color: #bb9193; }
+.music-custom-head { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; color: #715a54; }
+.music-custom-head > span { flex: 1; min-width: 0; }
+.music-custom-head strong { display: block; font-size: 13px; color: #362925; }
+.music-custom-head small { display: block; font-size: 11px; color: #7e6c65; margin-top: 2px; }
+.music-custom-card input { width: 100%; min-width: 0; padding: 7px 9px; border: 1px solid #e6dad5; border-radius: 8px; background: #fcf9f7; color: #3a2a25; font: 12.5px var(--ui); }
+.piano-keys { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 3px; }
+.piano-key { display: grid; place-items: center; gap: 1px; padding: 6px 1px; border: 1px solid #e7dbd5; border-radius: 7px; background: #fff; color: #4f3a34; transition: transform .08s, background .12s; }
+.piano-key strong { font-size: 11px; line-height: 1.1; }
+.piano-key span { font-size: 9px; color: #8c7770; }
+.piano-key:hover { background: #f6ebe8; }
+.piano-key:active { transform: translateY(1px); background: #edd9d5; }
+.music-note-samples { display: flex; flex-wrap: wrap; gap: 5px; }
+.music-note-samples button { padding: 3px 8px; border-radius: 999px; border: 1px solid #eadfda; background: #fff; color: #745b54; font-size: 11px; }
+.music-note-samples button:hover { background: #f4e6e4; color: #6a2f3d; }
 .option-row strong, .option-row small { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .option-row strong { color: #4d3e39; font-size: 13px; font-weight: 600; }
 .option-row small { margin-top: 4px; color: #77675f; font-size: 11px; }
@@ -316,8 +332,8 @@ button:disabled { cursor: default; }
   /* Compact adaptive bottom trays so the 3D card always occupies 50-68% of the mobile screen */
   .editor-panel { flex: 0 1 auto; min-height: 0; width: 100%; max-height: 40dvh; margin: 0; padding: 11px 14px 14px; border-radius: 20px 20px 0 0; border-inline: 0; border-bottom: 0; overflow-y: auto; touch-action: pan-y; -webkit-overflow-scrolling: touch; box-shadow: 0 -8px 26px rgb(52 34 28 / 7%); }
   .editor-shell[data-drawer=cover] .editor-panel,
-  .editor-shell[data-drawer=paper] .editor-panel,
-  .editor-shell[data-drawer=music] .editor-panel { max-height: 29dvh; }
+  .editor-shell[data-drawer=paper] .editor-panel { max-height: 29dvh; }
+  .editor-shell[data-drawer=music] .editor-panel { max-height: 41dvh; }
   .editor-shell[data-drawer=stickers] .editor-panel { max-height: 28dvh; }
   .editor-shell[data-drawer=text] .editor-panel { max-height: 40dvh; }
   .editor-shell[data-pack=sealed] .editor-panel { flex: 1; max-height: none; }

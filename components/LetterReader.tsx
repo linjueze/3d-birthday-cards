@@ -3,7 +3,7 @@
 import { AlignLeft, BookHeart, BookOpen, Clock3, Download, LockKeyhole, MailOpen, Maximize2, Minimize2, PenLine, Rotate3D, Volume2, VolumeX, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { loadInsideArt, renderKeepsakeCard } from "@/lib/art";
+import { loadCoverBase, loadInsideArt, renderKeepsakeCard, renderVerticalKeepsakeCard } from "@/lib/art";
 import { defaultDraft, type CardDraft } from "@/lib/cards";
 import { decodeSharedLetter } from "@/lib/share-codec";
 import CardScene from "./CardScene";
@@ -48,6 +48,7 @@ export default function LetterReader() {
   const [open, setOpen] = useState(false);
   const [focusMessage, setFocusMessage] = useState(false);
   const [burst, setBurst] = useState(false);
+  const [keepsakeMode, setKeepsakeMode] = useState<"spread" | "poster">("spread");
   const [keepsakeUrl, setKeepsakeUrl] = useState("");
   const hasOpenedCard = useRef(false);
   const userMuted = useRef(false);
@@ -134,14 +135,32 @@ export default function LetterReader() {
     toggle();
   }
 
+  async function renderKeepsake(mode: "spread" | "poster") {
+    const [coverCanvas] = await Promise.all([
+      mode === "poster" ? loadCoverBase(draft.template, "high") : Promise.resolve(undefined),
+      loadInsideArt(draft.template),
+    ]);
+    const canvas = mode === "poster"
+      ? renderVerticalKeepsakeCard(draft, coverCanvas)
+      : renderKeepsakeCard(draft);
+    setKeepsakeUrl(canvas.toDataURL("image/png"));
+  }
+
   async function openKeepsake() {
     try {
-      await loadInsideArt(draft.template);
-      const canvas = renderKeepsakeCard(draft);
-      setKeepsakeUrl(canvas.toDataURL("image/png"));
+      await renderKeepsake(keepsakeMode);
       keepsakeDialog.current?.showModal();
     } catch {
       notify("暂时无法生成纪念图，请稍后再试。");
+    }
+  }
+
+  async function switchKeepsakeMode(mode: "spread" | "poster") {
+    setKeepsakeMode(mode);
+    try {
+      await renderKeepsake(mode);
+    } catch {
+      notify("暂时无法切换纪念图样式，请稍后再试。");
     }
   }
 
@@ -150,9 +169,9 @@ export default function LetterReader() {
     const safeName = (draft.recipient.trim() || "birthday").replace(/[\\/:*?"<>|]/g, "");
     const link = document.createElement("a");
     link.href = keepsakeUrl;
-    link.download = `birthday-card-${safeName}.png`;
+    link.download = `birthday-card-${safeName}-${keepsakeMode}.png`;
     link.click();
-    notify("已开始下载高清贺卡纪念图");
+    notify(keepsakeMode === "poster" ? "已开始下载 9:16 竖版海报" : "已开始下载双页明信片纪念图");
   }
 
   const recipient = draft.recipient;
@@ -286,8 +305,16 @@ export default function LetterReader() {
                     <button type="submit" className="pill pill-outline" aria-label="关闭纪念图"><X size={18} aria-hidden="true" /></button>
                   </form>
                 </div>
+                <div className={styles.keepsakeTabs} role="tablist" aria-label="选择纪念图版式">
+                  <button type="button" role="tab" aria-selected={keepsakeMode === "spread"} onClick={() => { void switchKeepsakeMode("spread"); }}>双页明信片（横版）</button>
+                  <button type="button" role="tab" aria-selected={keepsakeMode === "poster"} onClick={() => { void switchKeepsakeMode("poster"); }}>手机海报（9:16 竖版）</button>
+                </div>
                 {keepsakeUrl && (
-                  <img src={keepsakeUrl} alt={`给 ${draft.recipient} 的生日贺卡纪念图`} className={styles.keepsakeImg} />
+                  <img
+                    src={keepsakeUrl}
+                    alt={`给 ${draft.recipient} 的生日贺卡纪念图`}
+                    className={`${styles.keepsakeImg} ${keepsakeMode === "poster" ? styles.keepsakePoster : ""}`}
+                  />
                 )}
                 <p className={styles.keepsakeTip}>手机微信内可长按上方图片保存到相册，桌面端可直接下载高清 PNG。</p>
                 <div className={styles.keepsakeActions}>

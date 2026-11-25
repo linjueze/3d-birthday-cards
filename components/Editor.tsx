@@ -11,12 +11,12 @@ import {
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { flushSync } from "react-dom";
 import CardScene from "@/components/CardScene";
-import { Brand, copyText, playPaperOpenSound, prepareSealSound, Stars, useMusic, useToast } from "@/components/Shared";
+import { Brand, copyText, playPaperOpenSound, prepareSealSound, previewNoteKey, Stars, useMusic, useToast } from "@/components/Shared";
 import { CardThumb, StickerThumb } from "@/components/Thumbnails";
 import { loadCoverArt, STICKER_BASE_SIZE } from "@/lib/art";
 import {
-  defaultDraft, FONT_OPTIONS, INK_OPTIONS, isTemplateSlug, PAPER_OPTIONS, STICKERS,
-  STUDIO_INSPIRATIONS, TEMPLATES, WAX_OPTIONS, WISH_GROUPS,
+  CUSTOM_NOTE_SAMPLES, defaultDraft, FONT_OPTIONS, INK_OPTIONS, isTemplateSlug, MUSIC_PRESETS,
+  PAPER_OPTIONS, STICKERS, STUDIO_INSPIRATIONS, TEMPLATES, WAX_OPTIONS, WISH_GROUPS,
   type CardDraft, type Music, type StickerId, type TemplateSlug,
 } from "@/lib/cards";
 import { MAX_MESSAGE_LENGTH, MAX_NAME_LENGTH, MAX_STICKERS } from "@/lib/letters";
@@ -26,8 +26,8 @@ import {
   playStickerStickSound, playWaxDropSound, setSfxMuted,
 } from "@/lib/sfx";
 import {
-  clearEditorDraft, encodeSharedLetter, loadEditorDraft, MAX_MOTTO_LENGTH, saveEditorDraft,
-  saveLocalOutboxItem, withBasePath,
+  clearEditorDraft, encodeSharedLetter, isValidAudioUrl, loadEditorDraft, MAX_CUSTOM_NOTES_LENGTH,
+  MAX_MOTTO_LENGTH, MAX_MUSIC_URL_LENGTH, saveEditorDraft, saveLocalOutboxItem, withBasePath,
 } from "@/lib/share-codec";
 
 const tools = [
@@ -43,8 +43,18 @@ type PackState = "none" | "packing" | "unsealed" | "sealed";
 type Delivery = "now" | "birthday" | "custom";
 type History = { past: CardDraft[]; draft: CardDraft; future: CardDraft[] };
 const holdDuration = 1000;
-const storyMusic: Music = { kind: "music-box" };
 const silentMusic: Music = { kind: "none" };
+const PIANO_KEYS = [
+  { token: "1", label: "Do" },
+  { token: "2", label: "Re" },
+  { token: "3", label: "Mi" },
+  { token: "4", label: "Fa" },
+  { token: "5", label: "Sol" },
+  { token: "6", label: "La" },
+  { token: "7", label: "Si" },
+  { token: "1'", label: "Do+" },
+  { token: "-", label: "延音" },
+] as const;
 const cap = (past: CardDraft[], snapshot: CardDraft) => [...past.slice(-79), snapshot];
 
 function makeId() {
@@ -102,6 +112,8 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
   const [sfxMuted, setSfxMutedState] = useState(false);
   const [craftBurst, setCraftBurst] = useState(0);
   const [typing, setTyping] = useState(false);
+  const [customNotesInput, setCustomNotesInput] = useState<string>(CUSTOM_NOTE_SAMPLES[0].notes);
+  const [customUrlInput, setCustomUrlInput] = useState("");
   const hydratedDraft = useRef(false);
   const inspireCursor = useRef(0);
   const { notify, toast } = useToast();
@@ -148,6 +160,8 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
         ? { ...saved, template: resolvedTemplate }
         : saved;
       setHistory({ past: [], draft: merged, future: [] });
+      if (merged.music.kind === "custom-notes") setCustomNotesInput(merged.music.notes);
+      if (merged.music.kind === "url") setCustomUrlInput(merged.music.url);
       setRestoredDraft(true);
       notify("已自动恢复上次未完成的草稿");
     }
@@ -392,7 +406,7 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
     try {
       const token = await encodeSharedLetter(draft, deliverAt);
       const id = makeId();
-      const recipientPath = `/letter/?c=${encodeURIComponent(token)}`;
+      const recipientPath = `/l/?c=${encodeURIComponent(token)}`;
       const outboxPath = "/outbox/";
       saveLocalOutboxItem({
         id,
@@ -626,10 +640,121 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
           <label className="field"><span>左页扉页短句 <small>选填，留空显示默认英文寄语</small></span><input value={draft.motto ?? ""} onChange={(event) => { edit({ motto: event.target.value }); setOpen(true); }} maxLength={MAX_MOTTO_LENGTH} placeholder="如：愿你永远自由、闪闪发光" /></label>
           <label className="field"><span>生日日期印章 <small>选填</small></span><input type="date" value={draft.birthday} onChange={(event) => { edit({ birthday: event.target.value }); setOpen(true); }} /></label>
         </div>}
-        {drawer === "music" && <div className="option-list">
-          <button type="button" className="option-row" aria-pressed={draft.music.kind === "music-box"} onClick={() => edit({ music: storyMusic })}><Music2 size={21} /><span><strong>八音盒 · 生日快乐</strong><small>内置合成旋律，零服务器直放</small></span>{draft.music.kind === "music-box" && <Check size={17} />}</button>
-          <button type="button" className="option-row" aria-pressed={draft.music.kind === "none"} onClick={() => edit({ music: silentMusic })}><Pause size={21} /><span><strong>无背景音乐</strong><small>安静地读一封信</small></span>{draft.music.kind === "none" && <Check size={17} />}</button>
-          {draft.music.kind !== "none" && <button type="button" className="pill pill-outline music-preview" onClick={toggleMusic}>{playing ? <Pause size={16} /> : <Play size={16} />}{playing ? "停止试听" : "试听音乐"}</button>}
+        {drawer === "music" && <div className="option-list music-panel">
+          {MUSIC_PRESETS.map((preset) => (
+            <button
+              type="button"
+              key={preset.id}
+              className="option-row"
+              aria-pressed={draft.music.kind === preset.id}
+              onClick={() => edit({ music: { kind: preset.id } })}
+            >
+              <Music2 size={20} />
+              <span><strong>{preset.label}</strong><small>{preset.description}</small></span>
+              {draft.music.kind === preset.id && <Check size={17} />}
+            </button>
+          ))}
+
+          <div className={`music-custom-card ${draft.music.kind === "custom-notes" ? "is-active" : ""}`}>
+            <button
+              type="button"
+              className="music-custom-head"
+              aria-pressed={draft.music.kind === "custom-notes"}
+              onClick={() => edit({ music: { kind: "custom-notes", notes: customNotesInput.trim() || CUSTOM_NOTE_SAMPLES[0].notes } })}
+            >
+              <Sparkles size={17} />
+              <span><strong>自定义八音盒旋律</strong><small>点琴键编专属旋律，直接编入短链接</small></span>
+              {draft.music.kind === "custom-notes" && <Check size={16} />}
+            </button>
+            <div className="piano-keys" role="group" aria-label="八音盒琴键">
+              {PIANO_KEYS.map((key) => (
+                <button
+                  key={key.token}
+                  type="button"
+                  className="piano-key"
+                  onClick={() => {
+                    previewNoteKey(key.token);
+                    const nextNotes = `${customNotesInput.trim()} ${key.token}`.trim().slice(0, MAX_CUSTOM_NOTES_LENGTH);
+                    setCustomNotesInput(nextNotes);
+                    edit({ music: { kind: "custom-notes", notes: nextNotes } });
+                  }}
+                >
+                  <strong>{key.token}</strong>
+                  <span>{key.label}</span>
+                </button>
+              ))}
+            </div>
+            <div className="music-note-samples">
+              {CUSTOM_NOTE_SAMPLES.map((sample) => (
+                <button
+                  key={sample.label}
+                  type="button"
+                  onClick={() => {
+                    setCustomNotesInput(sample.notes);
+                    edit({ music: { kind: "custom-notes", notes: sample.notes } });
+                  }}
+                >
+                  填入《{sample.label}》
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  setCustomNotesInput("");
+                  edit({ music: { kind: "custom-notes", notes: "" } });
+                }}
+              >
+                清空
+              </button>
+            </div>
+            <input
+              aria-label="自定义简谱"
+              value={customNotesInput}
+              maxLength={MAX_CUSTOM_NOTES_LENGTH}
+              placeholder="如：1 1 5 5 6 6 5 -"
+              onChange={(event) => {
+                const value = event.target.value;
+                setCustomNotesInput(value);
+                if (value.trim()) edit({ music: { kind: "custom-notes", notes: value } });
+              }}
+            />
+          </div>
+
+          <div className={`music-custom-card ${draft.music.kind === "url" ? "is-active" : ""}`}>
+            <button
+              type="button"
+              className="music-custom-head"
+              aria-pressed={draft.music.kind === "url"}
+              onClick={() => {
+                if (isValidAudioUrl(customUrlInput)) {
+                  edit({ music: { kind: "url", url: customUrlInput.trim() } });
+                } else {
+                  notify("请先在下方输入有效的 https:// 音频直链（MP3/M4A/OGG）");
+                }
+              }}
+            >
+              <ExternalLink size={16} />
+              <span><strong>自定义音频直链</strong><small>粘贴 MP3/M4A 链接，对方拆信即可播放</small></span>
+              {draft.music.kind === "url" && <Check size={16} />}
+            </button>
+            <input
+              type="url"
+              aria-label="自定义音频直链"
+              value={customUrlInput}
+              maxLength={MAX_MUSIC_URL_LENGTH}
+              placeholder="https://example.com/song.mp3"
+              onChange={(event) => {
+                const val = event.target.value;
+                setCustomUrlInput(val);
+                if (isValidAudioUrl(val)) {
+                  edit({ music: { kind: "url", url: val.trim() } });
+                }
+              }}
+            />
+          </div>
+
+          <button type="button" className="option-row" aria-pressed={draft.music.kind === "none"} onClick={() => edit({ music: silentMusic })}><Pause size={20} /><span><strong>无背景音乐</strong><small>安静地读一封信</small></span>{draft.music.kind === "none" && <Check size={17} />}</button>
+          {draft.music.kind !== "none" && <button type="button" className="pill pill-outline music-preview" onClick={toggleMusic}>{playing ? <Pause size={16} /> : <Play size={16} />}{playing ? "停止试听" : "试听当前音乐"}</button>}
         </div>}
       </aside>}
 

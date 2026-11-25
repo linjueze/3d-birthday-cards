@@ -114,10 +114,28 @@ export interface Sticker {
   rotation?: number;
 }
 
+export const MUSIC_PRESETS = [
+  { id: "music-box", label: "八音盒 · 生日快乐", description: "经典温暖庆生旋律，零流量直放" },
+  { id: "starry-lullaby", label: "八音盒 · 晚安星河", description: "轻柔星光摇篮曲，适合星月与温柔祝福" },
+  { id: "canon-breeze", label: "八音盒 · 浪漫卡农", description: "优雅清透卡农变奏，复古花园与恋人绝配" },
+] as const;
+
+export type BuiltinMusicKind = typeof MUSIC_PRESETS[number]["id"];
+
 export type Music =
   | { kind: "none" }
   | { kind: "music-box" }
+  | { kind: "starry-lullaby" }
+  | { kind: "canon-breeze" }
+  | { kind: "custom-notes"; notes: string }
+  | { kind: "url"; url: string; name?: string }
   | { kind: "upload"; name: string; data: string };
+
+export const CUSTOM_NOTE_SAMPLES = [
+  { label: "小星星", notes: "1 1 5 5 6 6 5 - 4 4 3 3 2 2 1 -" },
+  { label: "生日快乐", notes: "5 5 6 5 1' 7 - 5 5 6 5 2' 1' -" },
+  { label: "卡农片段", notes: "3' 2' 1' 7 6 5 6 7 1' 7 6 5" },
+] as const;
 
 export interface CardDraft {
   template: TemplateSlug;

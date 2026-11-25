@@ -66,12 +66,72 @@ export async function copyText(value: string) {
   }
 }
 
-const melody = [
-  [60, .57], [60, .29], [62, .85], [60, .85], [65, .85], [64, 1.6],
-  [60, .57], [60, .29], [62, .85], [60, .85], [67, .85], [65, 1.6],
-  [60, .57], [60, .29], [72, .85], [69, .85], [65, .85], [64, .85], [62, 1.6],
-  [70, .57], [70, .29], [69, .85], [65, .85], [67, .85], [65, 2.1],
-] as const;
+const MELODIES = {
+  "music-box": [
+    [60, .57], [60, .29], [62, .85], [60, .85], [65, .85], [64, 1.6],
+    [60, .57], [60, .29], [62, .85], [60, .85], [67, .85], [65, 1.6],
+    [60, .57], [60, .29], [72, .85], [69, .85], [65, .85], [64, .85], [62, 1.6],
+    [70, .57], [70, .29], [69, .85], [65, .85], [67, .85], [65, 2.1],
+  ],
+  "starry-lullaby": [
+    [60, .68], [60, .68], [67, .68], [67, .68], [69, .68], [69, .68], [67, 1.36],
+    [65, .68], [65, .68], [64, .68], [64, .68], [62, .68], [62, .68], [60, 1.36],
+    [67, .68], [67, .68], [65, .68], [65, .68], [64, .68], [64, .68], [62, 1.36],
+    [67, .68], [67, .68], [65, .68], [65, .68], [64, .68], [64, .68], [62, 1.45],
+  ],
+  "canon-breeze": [
+    [64, 1.05], [62, 1.05], [60, 1.05], [59, 1.05], [57, 1.05], [55, 1.05], [57, 1.05], [59, 1.05],
+    [67, .52], [64, .52], [67, .52], [72, .52], [71, .52], [67, .52], [69, .52], [64, .52],
+    [65, .52], [60, .52], [64, .52], [67, .52], [65, .52], [69, .52], [67, 1.55],
+  ],
+} as const;
+
+const SCALE_SEMITONES: Record<string, number> = {
+  "1": 0, "2": 2, "3": 4, "4": 5, "5": 7, "6": 9, "7": 11,
+};
+
+/** Parses numbered notation like `1 1 5 5 6 6 5 - 1'` into MIDI note/duration pairs. */
+export function parseCustomNotes(raw: string): [number, number][] {
+  const tokens = raw.trim().split(/[\s,|/]+/).filter(Boolean);
+  const result: [number, number][] = [];
+  for (const token of tokens) {
+    if (token === "-" || token === "0" || token === ".") {
+      if (result.length && token === "-") {
+        result[result.length - 1][1] += .42;
+      } else {
+        result.push([0, .42]);
+      }
+      continue;
+    }
+    const match = token.match(/^([1-7])([#b]?)([',]*)$/);
+    if (!match) continue;
+    const [, degree, accidental, oct] = match;
+    let midi = 60 + SCALE_SEMITONES[degree];
+    if (accidental === "#") midi += 1;
+    else if (accidental === "b") midi -= 1;
+    for (const ch of oct) {
+      if (ch === "'") midi += 12;
+      else if (ch === ",") midi -= 12;
+    }
+    result.push([Math.max(48, Math.min(84, midi)), .52]);
+    if (result.length >= 48) break;
+  }
+  return result;
+}
+
+export function previewNoteKey(token: string) {
+  if (typeof window === "undefined" || !window.AudioContext) return;
+  const parsed = parseCustomNotes(token);
+  const note = parsed[0]?.[0];
+  if (!note) return;
+  try {
+    const ctx = new AudioContext();
+    void ctx.resume().then(() => {
+      bell(ctx, note + 12, ctx.currentTime + .01, .085);
+      setTimeout(() => { if (ctx.state !== "closed") void ctx.close().catch(() => {}); }, 900);
+    }).catch(() => { if (ctx.state !== "closed") void ctx.close().catch(() => {}); });
+  } catch { /* Audio unavailable */ }
+}
 
 function bell(context: AudioContext, note: number, when: number, volume: number) {
   const fundamental = 440 * 2 ** ((note - 69) / 12);
@@ -189,8 +249,9 @@ export function useMusic(music: Music) {
 
   const start = useCallback(() => {
     if (player.current || music.kind === "none") return;
-    if (music.kind === "upload") {
-      const audio = new Audio(music.data);
+    if (music.kind === "upload" || music.kind === "url") {
+      const src = music.kind === "upload" ? music.data : music.url;
+      const audio = new Audio(src);
       audio.volume = .6;
       audio.loop = true;
       player.current = { audio };
@@ -201,20 +262,25 @@ export function useMusic(music: Music) {
       return;
     }
 
-    if (!window.AudioContext) return;
+    const sequence: readonly (readonly [number, number])[] = music.kind === "custom-notes"
+      ? parseCustomNotes(music.notes)
+      : MELODIES[music.kind];
+    if (!sequence.length || !window.AudioContext) return;
     const context = new AudioContext();
     player.current = { context };
     const playPhrase = () => {
       if (player.current?.context !== context) return;
       let at = context.currentTime + .07;
-      melody.forEach(([note, duration], index) => {
-        bell(context, note + 12, at, .075);
-        if ([2, 4, 5, 8, 10, 11, 14, 16, 18, 21, 23].includes(index)) {
-          bell(context, note - 12, at + .045, .022);
+      sequence.forEach(([note, duration], index) => {
+        if (note > 0) {
+          bell(context, note + 12, at, .075);
+          if (index % 3 === 0) {
+            bell(context, note - 12, at + .045, .02);
+          }
         }
         at += duration;
       });
-      player.current.timer = setTimeout(playPhrase, (at - context.currentTime + .6) * 1000);
+      player.current.timer = setTimeout(playPhrase, (at - context.currentTime + .75) * 1000);
     };
     void context.resume().then(() => {
       if (player.current?.context !== context) return;

@@ -679,6 +679,88 @@ export function renderKeepsakeCard(draft: CardDraft): HTMLCanvasElement {
   return canvas;
 }
 
+/**
+ * Renders a crisp 9:16 mobile vertical keepsake poster (1080x1920) pairing the bespoke
+ * illustrated cover on top with the unfolded stationery message & stickers below.
+ */
+export function renderVerticalKeepsakeCard(draft: CardDraft, coverCanvas?: HTMLCanvasElement): HTMLCanvasElement {
+  const width = 1080;
+  const height = 1920;
+  const { canvas, ctx } = surface(width, height);
+  const bg = ctx.createLinearGradient(0, 0, width, height);
+  bg.addColorStop(0, "#f9f4ed");
+  bg.addColorStop(.5, "#f4ece2");
+  bg.addColorStop(1, "#ede2d5");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, width, height);
+
+  // Subtle antique-gold outer poster border
+  ctx.save();
+  ctx.strokeStyle = "rgba(186, 155, 112, 0.42)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(32, 32, width - 64, height - 64);
+  ctx.restore();
+
+  // Top half: bespoke illustrated cover
+  const cover = coverCanvas ?? getInitialCoverBase(draft.template);
+  const coverW = 612;
+  const coverH = Math.round(coverW * 4 / 3); // 816
+  const coverX = Math.round((width - coverW) / 2);
+  const coverY = 82;
+  ctx.save();
+  ctx.translate(width / 2, coverY + coverH / 2);
+  ctx.rotate(-.014);
+  ctx.shadowColor = "rgba(56, 36, 26, 0.24)";
+  ctx.shadowBlur = 40;
+  ctx.shadowOffsetY = 18;
+  ctx.fillStyle = "#efe3d0";
+  ctx.fillRect(-coverW / 2, -coverH / 2, coverW, coverH);
+  ctx.shadowColor = "transparent";
+  ctx.drawImage(cover, -coverW / 2, -coverH / 2, coverW, coverH);
+  ctx.restore();
+
+  // Delicate motto divider between cover and letter
+  const mottoText = (draft.motto ?? "").trim() || insideMottos[draft.template];
+  const hasCjk = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(mottoText);
+  ctx.save();
+  ctx.fillStyle = "#8a6d49";
+  ctx.textAlign = "center";
+  ctx.font = hasCjk
+    ? '26px "Noto Serif SC", "Songti SC", Georgia, serif'
+    : 'italic 30px "Cormorant Garamond", Georgia, serif';
+  ctx.fillText(mottoText, width / 2, coverY + coverH + 56, width - 160);
+  ctx.restore();
+
+  // Bottom half: crisp message stationery page with stickers
+  const rightPage = insideArt(draft, "right", true, true);
+  const pageW = 612;
+  const pageH = Math.round(pageW * 4 / 3); // 816
+  const pageX = Math.round((width - pageW) / 2);
+  const pageY = coverY + coverH + 92;
+  ctx.save();
+  ctx.shadowColor = "rgba(56, 36, 26, 0.2)";
+  ctx.shadowBlur = 36;
+  ctx.shadowOffsetY = 14;
+  ctx.fillStyle = "#f4e8d6";
+  ctx.fillRect(pageX, pageY, pageW, pageH);
+  ctx.shadowColor = "transparent";
+  ctx.drawImage(rightPage, pageX, pageY, pageW, pageH);
+  ctx.restore();
+
+  // Footer caption
+  ctx.save();
+  ctx.fillStyle = "rgba(122, 99, 86, 0.7)";
+  ctx.font = '21px "Cormorant Garamond", "Noto Serif SC", Georgia, serif';
+  ctx.textAlign = "center";
+  const footerText = draft.birthday
+    ? `Birthday Cards · ${draft.birthday.replaceAll("-", ".")}`
+    : "Birthday Cards · 生日信";
+  ctx.fillText(footerText, width / 2, height - 56);
+  ctx.restore();
+
+  return canvas;
+}
+
 let cachedLiner: HTMLCanvasElement | undefined;
 
 export function linerArt() {
