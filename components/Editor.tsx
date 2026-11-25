@@ -101,11 +101,13 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
   const [impulse, setImpulse] = useState<SceneImpulse | null>(null);
   const [sfxMuted, setSfxMutedState] = useState(false);
   const [craftBurst, setCraftBurst] = useState(0);
+  const [typing, setTyping] = useState(false);
   const hydratedDraft = useRef(false);
   const inspireCursor = useRef(0);
   const { notify, toast } = useToast();
   const { playing, toggle: toggleMusic, stop: stopMusic } = useMusic(draft.music);
   const recipientInput = useRef<HTMLInputElement>(null);
+  const shellRef = useRef<HTMLElement>(null);
   const dragOriginal = useRef<CardDraft | null>(null);
   const holdFrame = useRef<number | null>(null);
   const sealSound = useRef<ReturnType<typeof prepareSealSound>>(null);
@@ -210,6 +212,26 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
     window.addEventListener("keydown", keyboard);
     return () => window.removeEventListener("keydown", keyboard);
   }, [pack, redo, undo]);
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    const node = shellRef.current;
+    if (!vv || !node) return;
+    const syncViewport = () => {
+      if (window.innerWidth <= 820) {
+        node.style.setProperty("--vvh", `${Math.round(vv.height)}px`);
+      } else {
+        node.style.removeProperty("--vvh");
+      }
+    };
+    syncViewport();
+    vv.addEventListener("resize", syncViewport);
+    window.addEventListener("resize", syncViewport);
+    return () => {
+      vv.removeEventListener("resize", syncViewport);
+      window.removeEventListener("resize", syncViewport);
+    };
+  }, []);
 
   useEffect(() => () => {
     if (holdFrame.current !== null) cancelAnimationFrame(holdFrame.current);
@@ -428,7 +450,15 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
     }
   }
 
-  return <main className="editor-shell" data-pack={pack} data-panel={nextPanel ? "open" : "closed"} data-preview={preview ? "true" : "false"}>
+  return <main
+    ref={shellRef}
+    className="editor-shell"
+    data-pack={pack}
+    data-panel={nextPanel ? "open" : "closed"}
+    data-drawer={nextPanel ? (pack === "sealed" ? "sealed" : (drawer ?? "none")) : "none"}
+    data-typing={typing ? "true" : "false"}
+    data-preview={preview ? "true" : "false"}
+  >
     <header className="site-header editor-header">
       <div className="editor-header-brand"><Brand /><Link href="/" className="editor-home" aria-label="返回首页"><ArrowLeft size={15} /> 首页</Link></div>
       <div className="editor-steps" aria-label="制作步骤">
@@ -481,7 +511,7 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
         </div>
         <div className="stage-caption">
           {pack === "none" ? <div className="stage-caption-stack">
-            {!preview && open && activeSticker && (
+            {!preview && open && activeSticker ? (
               <div className="sticker-quickbar glass" role="toolbar" aria-label="贴纸快捷操作">
                 <button type="button" className="icon-btn" aria-label="向左旋转贴纸" title="左转 15°" onClick={() => { adjustSticker({ rotation: (activeSticker.rotation ?? 0) - 15 }); haptic(6); }}><RotateCcw size={15} /></button>
                 <button type="button" className="icon-btn" aria-label="向右旋转贴纸" title="右转 15°" onClick={() => { adjustSticker({ rotation: (activeSticker.rotation ?? 0) + 15 }); haptic(6); }}><RotateCw size={15} /></button>
@@ -492,19 +522,20 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
                 <button type="button" className="icon-btn sticker-quick-del" aria-label="撕掉贴纸" title="撕掉贴纸" onClick={deleteSticker}><Trash2 size={15} /></button>
                 <button type="button" className="sticker-quick-done" onClick={() => setSelectedSticker(null)}><Check size={14} />完成</button>
               </div>
+            ) : (
+              <div className="stage-view glass">
+                <button type="button" aria-pressed={!open} onClick={() => { if (open) playPaperOpenSound(); setOpen(false); setFocusMessage(false); }}>封面 <span>1/2</span></button>
+                <button type="button" aria-pressed={open} onClick={() => { if (!open) playPaperOpenSound(); setOpen(true); }}>内页 <span>2/2</span></button>
+                <i />
+                {open ? (
+                  <button type="button" className="stage-fold" aria-pressed={focusMessage} onClick={() => setFocusMessage((v) => !v)}>
+                    {focusMessage ? <Minimize2 size={14} /> : <Maximize2 size={14} />}{focusMessage ? "看双页" : "放大写字"}
+                  </button>
+                ) : (
+                  <button type="button" className="stage-fold" onClick={() => { playPaperOpenSound(); setOpen(true); }}><BookOpen size={15} />翻开贺卡</button>
+                )}
+              </div>
             )}
-            <div className="stage-view glass">
-              <button type="button" aria-pressed={!open} onClick={() => { if (open) playPaperOpenSound(); setOpen(false); setFocusMessage(false); }}>封面 <span>1/2</span></button>
-              <button type="button" aria-pressed={open} onClick={() => { if (!open) playPaperOpenSound(); setOpen(true); }}>内页 <span>2/2</span></button>
-              <i />
-              {open ? (
-                <button type="button" className="stage-fold" aria-pressed={focusMessage} onClick={() => setFocusMessage((v) => !v)}>
-                  {focusMessage ? <Minimize2 size={14} /> : <Maximize2 size={14} />}{focusMessage ? "看双页" : "放大写字"}
-                </button>
-              ) : (
-                <button type="button" className="stage-fold" onClick={() => { playPaperOpenSound(); setOpen(true); }}><BookOpen size={15} />翻开贺卡</button>
-              )}
-            </div>
           </div> : <div className="pack-footer">
             {pack === "unsealed" && (
               <div className="wax-picker glass" role="radiogroup" aria-label="选择火漆印章">
@@ -531,7 +562,21 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
         </div>
       </section>
 
-      {pack === "none" && !preview && drawer && <aside className="editor-panel glass" aria-label={tools.find(({ id }) => id === drawer)?.label}>
+      {pack === "none" && !preview && drawer && <aside
+        className="editor-panel glass"
+        aria-label={tools.find(({ id }) => id === drawer)?.label}
+        onFocusCapture={(event) => {
+          if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+            setTyping(true);
+          }
+        }}
+        onBlurCapture={(event) => {
+          const nextTarget = event.relatedTarget;
+          if (!(nextTarget instanceof HTMLInputElement || nextTarget instanceof HTMLTextAreaElement)) {
+            setTyping(false);
+          }
+        }}
+      >
         <div className="editor-panel-title">
           <div><h2>{drawer === "text" ? "写下祝福" : drawer === "cover" ? "挑选封面" : drawer === "paper" ? "挑选纸张" : drawer === "stickers" ? "点缀贴纸" : "搭配音乐"}</h2>
             <p>{drawer === "text" ? "写在贺卡内页，等 TA 亲手翻开。" : drawer === "cover" ? "四种纸艺主题，点击更换封面。" : drawer === "paper" ? "拖动贺卡，可看到纸纹与光泽变化。" : drawer === "stickers" ? "点选添加，拖动内页上的贴纸以移动。" : "拆信后，收件人可以选择播放。"}</p></div>

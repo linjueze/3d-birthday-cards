@@ -289,36 +289,70 @@ button:disabled { cursor: default; }
   .scene-zoom-bar .icon-btn { width: 40px; height: 40px; }
   .scene-zoom-pct { min-width: 44px; height: 40px; font-size: 12px; }
 
-  /* Native split-screen app layout for mobile editor: sticky 3D stage on top + scrollable bottom sheet + non-overlapping bottom dock */
-  .editor-shell { display: flex; flex-direction: column; height: 100dvh; min-height: 0; overflow: hidden; padding-bottom: 0; }
+  /* Canvas-first mobile studio: 3D card stays large & pinned on top; compact adaptive tool tray below */
+  .editor-shell { position: fixed; inset: 0; display: flex; flex-direction: column; height: var(--vvh, 100dvh); min-height: 0; overflow: hidden; padding-bottom: 0; }
   .editor-shell:not([data-pack=none]) { padding-bottom: 0; }
-  .editor-header { width: calc(100% - 28px); flex: none; min-height: 56px; }
+  .editor-header { width: calc(100% - 24px); flex: none; min-height: 48px; }
   .editor-header-brand { gap: 8px; }
   .editor-home { display: none; }
-  .editor-next { min-height: 40px; padding-inline: 14px; font-size: 12px; }
-  .editor-steps > button, .editor-steps > span { min-height: 36px; }
+  .editor-next { min-height: 36px; padding-inline: 13px; font-size: 12px; }
+  .editor-steps > button, .editor-steps > span { min-height: 32px; }
   .editor-workspace { width: 100%; flex: 1; min-height: 0; height: auto; display: flex; flex-direction: column; gap: 0; overflow: hidden; transition: none; }
   .editor-with-panel { grid-template-columns: none; column-gap: 0; }
 
-  .editor-stage { flex: 1; min-height: 0; height: auto; padding: 0 14px 4px; }
-  .editor-shell[data-panel=open] .editor-stage { flex: none; height: clamp(232px, 35dvh, 300px); }
-  .editor-shell[data-pack=sealed] .editor-stage { flex: none; height: clamp(162px, 24dvh, 208px); }
-  .editor-stage-top { padding: 8px 2px 0; align-items: center; }
+  .editor-stage { flex: 1 1 auto; min-height: 215px; height: auto; padding: 0 12px 4px; }
+  .editor-shell[data-pack=sealed] .editor-stage { flex: none; height: clamp(160px, 24dvh, 210px); }
+  .editor-stage-top { padding: 4px 2px 0; align-items: center; }
   .editor-stage-top .eyebrow { display: none; }
-  .editor-stage-top h1 { margin: 0; font-size: 20px; }
+  .editor-stage-top h1 { margin: 0; font-size: 18px; }
   .editor-stage-actions { gap: 1px; padding: 2px 3px; }
-  .editor-stage-actions .icon-btn { width: 34px; height: 36px; }
-  .editor-preview { min-height: 36px; padding: 0 9px; font-size: 12px; }
+  .editor-stage-actions .icon-btn { width: 32px; height: 34px; }
+  .editor-preview { min-height: 34px; padding: 0 9px; font-size: 12px; }
   .editor-artwork { min-height: 0; height: 100%; }
-  .stage-caption { min-height: 46px; padding: 4px 0; }
-  .stage-view > button { min-height: 40px; padding: 6px 11px; }
+  .stage-caption { min-height: 40px; padding: 2px 0 4px; }
+  .stage-view > button { min-height: 36px; padding: 4px 10px; font-size: 12px; }
   .editor-shell[data-panel=open] .scene-zoom-bar { display: none; }
 
-  .editor-panel { flex: 1; min-height: 0; width: 100%; max-height: none; margin: 0; padding: 16px 18px 22px; border-radius: 22px 22px 0 0; border-inline: 0; border-bottom: 0; overflow-y: auto; touch-action: pan-y; -webkit-overflow-scrolling: touch; box-shadow: 0 -10px 30px rgb(52 34 28 / 7%); }
-  .editor-panel-title { margin-bottom: 14px; }
-  .editor-panel h2 { font-size: 19px; }
-  .editor-panel .panel-close { width: 40px; height: 40px; margin: -6px -6px 0 0; }
+  /* Compact adaptive bottom trays so the 3D card always occupies 50-68% of the mobile screen */
+  .editor-panel { flex: 0 1 auto; min-height: 0; width: 100%; max-height: 40dvh; margin: 0; padding: 11px 14px 14px; border-radius: 20px 20px 0 0; border-inline: 0; border-bottom: 0; overflow-y: auto; touch-action: pan-y; -webkit-overflow-scrolling: touch; box-shadow: 0 -8px 26px rgb(52 34 28 / 7%); }
+  .editor-shell[data-drawer=cover] .editor-panel,
+  .editor-shell[data-drawer=paper] .editor-panel,
+  .editor-shell[data-drawer=music] .editor-panel { max-height: 29dvh; }
+  .editor-shell[data-drawer=stickers] .editor-panel { max-height: 28dvh; }
+  .editor-shell[data-drawer=text] .editor-panel { max-height: 40dvh; }
+  .editor-shell[data-pack=sealed] .editor-panel { flex: 1; max-height: none; }
+  .editor-shell[data-typing=true] .editor-stage { min-height: 170px; }
+  .editor-shell[data-typing=true] .editor-stage-top { display: none; }
+  .editor-shell[data-typing=true] .editor-panel { max-height: 48dvh; padding-top: 8px; }
+  .editor-shell[data-typing=true] .editor-panel-title { display: none; }
+  .editor-shell[data-typing=true] .editor-dock { display: none; }
+
+  .editor-panel-title { margin-bottom: 8px; align-items: center; }
+  .editor-panel-title p { display: none; }
+  .editor-panel h2 { font-size: 15px; }
+  .editor-panel .panel-close { width: 34px; height: 34px; margin: -4px -4px 0 0; }
+
+  /* Horizontal single-row trays for Cover, Paper, Stickers, and Music on mobile */
+  .editor-cover-grid { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scroll-snap-type: x proximity; }
+  .editor-cover-choice { flex: 0 0 82px; padding: 4px 4px 6px; scroll-snap-align: start; }
+  .editor-cover-choice > div { height: 74px; }
+  .editor-cover-choice .card-thumb { height: 60px; }
+  .editor-cover-choice > span { margin-top: 4px; font-size: 11px; white-space: nowrap; }
+
+  .editor-shell[data-drawer=paper] .option-list { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+  .editor-shell[data-drawer=paper] .option-row { flex: 1 0 112px; flex-direction: column; align-items: flex-start; min-height: 0; padding: 8px 10px; gap: 5px; }
+  .editor-shell[data-drawer=paper] .option-row small { display: none; }
+  .editor-shell[data-drawer=paper] .option-row > svg { position: absolute; top: 8px; right: 8px; }
+  .editor-shell[data-drawer=paper] .option-row { position: relative; }
+
+  .sticker-grid { display: grid; grid-template-columns: none; grid-auto-flow: column; grid-template-rows: repeat(2, auto); grid-auto-columns: 62px; gap: 4px 6px; overflow-x: auto; padding-bottom: 2px; }
+  .sticker-grid button { padding: 2px 2px 4px; }
+  .sticker-thumb { width: 38px; height: 38px; }
+  .placed-stickers { display: none; }
+
   .editor-panel input, .editor-panel textarea, .editor-panel select { font-size: 16px; }
+  .field textarea { min-height: 64px; }
+  .text-tools { gap: 10px; }
   .share-field .icon-btn { width: 40px; height: 40px; }
   .share-field input { font-size: 13px; }
   .send-icon { width: 42px; height: 42px; margin-bottom: 10px; }
@@ -326,9 +360,9 @@ button:disabled { cursor: default; }
   .delivery-options { margin-bottom: 10px; }
   .send-letter { margin-top: 12px; }
 
-  .editor-dock { position: static; left: auto; bottom: auto; transform: none; flex: none; width: 100%; justify-content: space-around; gap: 4px; padding: 6px 8px max(8px, env(safe-area-inset-bottom)); border-radius: 0; border-inline: 0; border-bottom: 0; box-shadow: 0 -4px 18px rgb(52 34 28 / 6%); }
-  .editor-dock button { flex: 1; width: auto; max-width: 78px; height: 50px; gap: 3px; border-radius: 12px; font-size: 11px; }
-  .toast-layer { top: 64px; }
+  .editor-dock { position: static; left: auto; bottom: auto; transform: none; flex: none; width: 100%; justify-content: space-around; gap: 4px; padding: 4px 8px max(6px, env(safe-area-inset-bottom)); border-radius: 0; border-inline: 0; border-bottom: 0; box-shadow: 0 -4px 18px rgb(52 34 28 / 6%); }
+  .editor-dock button { flex: 1; width: auto; max-width: 78px; height: 46px; gap: 2px; border-radius: 12px; font-size: 11px; }
+  .toast-layer { top: 56px; }
 }
 
 @media (max-width: 480px) {
