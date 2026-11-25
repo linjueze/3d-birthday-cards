@@ -106,8 +106,6 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
   const { notify, toast } = useToast();
   const { playing, toggle: toggleMusic, stop: stopMusic } = useMusic(draft.music);
   const recipientInput = useRef<HTMLInputElement>(null);
-  const messageInput = useRef<HTMLTextAreaElement>(null);
-  const mottoInput = useRef<HTMLInputElement>(null);
   const dragOriginal = useRef<CardDraft | null>(null);
   const holdFrame = useRef<number | null>(null);
   const sealSound = useRef<ReturnType<typeof prepareSealSound>>(null);
@@ -193,26 +191,6 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
     triggerImpulse("inspire");
     setCraftBurst((n) => n + 1);
     notify(`已为你搭配「${preset.name}」灵感套装`);
-  }
-
-  function handlePageClick(side: "left" | "right") {
-    if (preview) {
-      playPaperOpenSound();
-      setOpen((value) => !value);
-      return;
-    }
-    setSelectedSticker(null);
-    flushSync(() => {
-      setDrawer("text");
-      setOpen(true);
-    });
-    if (side === "left") {
-      mottoInput.current?.focus();
-    } else if (!draft.recipient.trim()) {
-      recipientInput.current?.focus();
-    } else {
-      messageInput.current?.focus();
-    }
   }
 
   useEffect(() => {
@@ -485,8 +463,11 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
         <div className="editor-artwork">
           <div className="editor-artwork-glow" aria-hidden="true" />
           <CardScene draft={draft} mode={pack === "none" ? "editor" : "pack"} open={open} focusMessage={focusMessage} impulse={impulse} envelope={pack} sealProgress={progress} onReady={sceneReady}
-            onToggle={pack === "none" ? () => { playPaperOpenSound(); setOpen((value) => { if (value) setFocusMessage(false); return !value; }); } : undefined}
-            onPageClick={pack === "none" ? handlePageClick : undefined}
+            onToggle={pack === "none" ? () => {
+              if (selectedSticker) { setSelectedSticker(null); return; }
+              playPaperOpenSound();
+              setOpen((value) => { if (value) setFocusMessage(false); return !value; });
+            } : undefined}
             onStickerSelect={!preview && pack === "none" ? setSelectedSticker : undefined}
             selectedSticker={!preview ? selectedSticker : null} onStickerMove={!preview ? moveSticker : undefined} onStickerCommit={!preview ? finishSticker : undefined} />
           {pack === "unsealed" && <button type="button" className="seal-target" aria-label="按住火漆处 1 秒，盖上印章" onPointerDown={holdPointer} onPointerUp={stopHold} onPointerCancel={stopHold} onLostPointerCapture={stopHold}
@@ -585,7 +566,7 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
         </>}
         {drawer === "text" && <div className="text-tools">
           <label className="field"><span>收件人</span><span className="recipient-field"><span>Dear</span><input ref={recipientInput} value={draft.recipient} onChange={(event) => { edit({ recipient: event.target.value }); setOpen(true); }} maxLength={MAX_NAME_LENGTH} placeholder="TA 的名字" /></span></label>
-          <label className="field"><span>生日祝福</span><textarea ref={messageInput} rows={4} value={draft.message} onChange={(event) => { edit({ message: event.target.value }); setOpen(true); }} maxLength={MAX_MESSAGE_LENGTH} placeholder="把想说的话写在这里…" /></label>
+          <label className="field"><span>生日祝福</span><textarea rows={4} value={draft.message} onChange={(event) => { edit({ message: event.target.value }); setOpen(true); }} maxLength={MAX_MESSAGE_LENGTH} placeholder="把想说的话写在这里…" /></label>
           <label className="field"><span>落款</span><input value={draft.sender} onChange={(event) => { edit({ sender: event.target.value }); setOpen(true); }} maxLength={MAX_NAME_LENGTH} placeholder="你的名字" /></label>
           <div className="field"><span>书写字体</span><div className="font-options">{FONT_OPTIONS.map((font) => <button type="button" key={font.id} aria-pressed={draft.font === font.id} onClick={() => edit({ font: font.id })} style={{ fontFamily: `"${font.family}", serif` }}>{font.label}</button>)}</div></div>
           <div className="field"><span>钢笔墨水色</span><div className="ink-options" role="radiogroup" aria-label="选择钢笔墨水色">{INK_OPTIONS.map((ink) => <button type="button" key={ink.id} role="radio" aria-checked={(draft.ink ?? "sepia") === ink.id} onClick={() => { edit({ ink: ink.id }); setOpen(true); haptic(6); }}><i style={{ backgroundColor: ink.color }} /><span>{ink.label}</span></button>)}</div></div>
@@ -597,7 +578,7 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
             </div>
             {WISH_GROUPS[wishTab].items.map((wish) => <button type="button" key={wish} className="wish-item" onClick={() => { edit({ message: wish }); setOpen(true); haptic(8); }}>{wish}</button>)}
           </details>
-          <label className="field"><span>左页扉页短句 <small>选填，留空显示默认英文寄语</small></span><input ref={mottoInput} value={draft.motto ?? ""} onChange={(event) => { edit({ motto: event.target.value }); setOpen(true); }} maxLength={MAX_MOTTO_LENGTH} placeholder="如：愿你永远自由、闪闪发光" /></label>
+          <label className="field"><span>左页扉页短句 <small>选填，留空显示默认英文寄语</small></span><input value={draft.motto ?? ""} onChange={(event) => { edit({ motto: event.target.value }); setOpen(true); }} maxLength={MAX_MOTTO_LENGTH} placeholder="如：愿你永远自由、闪闪发光" /></label>
           <label className="field"><span>生日日期印章 <small>选填</small></span><input type="date" value={draft.birthday} onChange={(event) => { edit({ birthday: event.target.value }); setOpen(true); }} /></label>
         </div>}
         {drawer === "music" && <div className="option-list">
