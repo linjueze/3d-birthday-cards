@@ -306,8 +306,8 @@ export default function LetterReader() {
                   </form>
                 </div>
                 <div className={styles.keepsakeTabs} role="tablist" aria-label="选择纪念图版式">
-                  <button type="button" role="tab" aria-selected={keepsakeMode === "spread"} onClick={() => { void switchKeepsakeMode("spread"); }}>双页明信片（横版）</button>
-                  <button type="button" role="tab" aria-selected={keepsakeMode === "poster"} onClick={() => { void switchKeepsakeMode("poster"); }}>手机海报（9:16 竖版）</button>
+                  <button type="button" role="tab" aria-selected={keepsakeMode === "spread"} onClick={() => { void switchKeepsakeMode("spread"); }}>横版双页明信片</button>
+                  <button type="button" role="tab" aria-selected={keepsakeMode === "poster"} onClick={() => { void switchKeepsakeMode("poster"); }}>9:16 竖版海报</button>
                 </div>
                 {keepsakeUrl && (
                   <img
