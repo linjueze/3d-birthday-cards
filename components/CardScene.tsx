@@ -4,7 +4,7 @@ import { RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type RefObject } from "react";
 import { COVER_MANIFEST, COVER_PREVIEW_DATA_URI, coverArt, getInitialCoverBase, insideArt, linerArt, loadCoverBase, loadCoverPreview, loadInsideArt, STICKER_BASE_SIZE, stickerArt } from "@/lib/art";
 import { TEMPLATES, WAX_OPTIONS, type TemplateSlug } from "@/lib/cards";
-import { createStage, FALLBACK_TIMINGS, GALLERY_SLOTS, galleryOffset, MAX_ZOOM, MIN_ZOOM, type SceneHit, type SceneProps, type SceneStage } from "@/lib/scene-stage";
+import { createStage, FALLBACK_TIMINGS, GALLERY_SLOTS, galleryOffset, isGallerySlotHidden, MAX_ZOOM, MIN_ZOOM, type SceneHit, type SceneProps, type SceneStage } from "@/lib/scene-stage";
 import "@/lib/scene-fallback.css";
 
 type ActiveGesture = {
@@ -72,7 +72,9 @@ function Fallback({ draft, mode, envelope, open, sealProgress, selectedSticker }
   return (
     <div className="scene-fallback" data-phase={envelope ?? "none"} style={{ "--wax-color": waxPreset.color, "--wax-stamp": waxPreset.stamp } as CSSProperties} aria-hidden="true">
       {gallery && TEMPLATES.filter((template) => template.slug !== draft.template).map((template) => {
-        const slot = GALLERY_SLOTS[galleryOffset(template.slug, draft.template)];
+        const offset = galleryOffset(template.slug, draft.template);
+        if (isGallerySlotHidden(offset)) return null;
+        const slot = GALLERY_SLOTS[offset] ?? GALLERY_SLOTS[0];
         const style = {
           "--slot-x": slot.x,
           "--slot-y": slot.y,

@@ -460,6 +460,234 @@ export function createCoverLivingFX(slug: TemplateSlug): CoverLivingFX {
         mat.opacity = pulse * vis;
       });
     });
+  } else if (slug === "sakura-mail") {
+    const petalTex = petalSprite();
+    const glowTex = glowSprite();
+    const starTex = starSprite();
+
+    // 7 delicate sakura petals drifting lazily diagonally across the blush-pink arch
+    for (let i = 0; i < 7; i++) {
+      const mat = new THREE.MeshBasicMaterial({
+        map: petalTex, transparent: true, depthWrite: false, opacity: 0,
+      });
+      const size = .14 + (i % 3) * .032;
+      const petal = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
+      petal.renderOrder = 6;
+      group.add(petal);
+      const startX = -.78 + (i / 6) * 1.32;
+      const speed = .068 + (i % 3) * .017;
+      const offset = i * .16;
+      updaters.push((t, vis, reduced) => {
+        if (reduced) { mat.opacity = 0; return; }
+        const p = (t * speed + offset) % 1;
+        const x = startX + p * .46 + Math.sin(p * Math.PI * 2.3 + i) * .13;
+        const y = .96 - p * 1.92;
+        petal.position.set(x, y, .008 + (i % 2) * .003);
+        petal.rotation.z = t * (.42 + (i % 3) * .16) + i * .9;
+        petal.rotation.x = Math.sin(t * 1.5 + i) * .55;
+        const fade = Math.sin(p * Math.PI);
+        mat.opacity = Math.min(1, fade * 1.35) * .86 * vis;
+      });
+    }
+
+    // Gentle golden wing-shimmer halos pulsing softly on the two embossed gold butterflies
+    const butterflies = [
+      { x: .156, y: .458, size: .36, phase: .2 },
+      { x: .655, y: .707, size: .30, phase: 2.1 },
+    ];
+    for (const b of butterflies) {
+      const haloMat = new THREE.MeshBasicMaterial({
+        map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .35,
+      });
+      const halo = new THREE.Mesh(new THREE.PlaneGeometry(b.size, b.size), haloMat);
+      halo.position.set(b.x, b.y, .004);
+      halo.renderOrder = 5;
+
+      const glintMat = new THREE.MeshBasicMaterial({
+        map: starTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .55,
+      });
+      const glint = new THREE.Mesh(new THREE.PlaneGeometry(.13, .13), glintMat);
+      glint.position.set(b.x, b.y, .006);
+      glint.renderOrder = 6;
+      group.add(halo, glint);
+
+      updaters.push((t, vis, reduced) => {
+        const flutter = reduced ? .5 : .35 + .65 * (.5 + .5 * Math.sin(t * 3.1 + b.phase));
+        const bob = reduced ? 0 : Math.sin(t * 1.8 + b.phase) * .02;
+        halo.position.y = b.y + bob;
+        glint.position.y = b.y + bob;
+        haloMat.opacity = (.22 + flutter * .28) * vis;
+        glintMat.opacity = (.3 + flutter * .48) * vis;
+        glint.scale.setScalar(.72 + flutter * .38);
+      });
+    }
+
+    // 6 soft rising stardust motes floating near the ribbon-tied love letter
+    for (let i = 0; i < 6; i++) {
+      const mat = new THREE.MeshBasicMaterial({
+        map: starTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0,
+      });
+      const size = .052 + (i % 3) * .018;
+      const mote = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
+      mote.renderOrder = 6;
+      group.add(mote);
+      const baseX = -.54 + (i / 5) * 1.08;
+      const speed = .11 + (i % 3) * .025;
+      const offset = i * .29;
+      updaters.push((t, vis, reduced) => {
+        if (reduced) { mat.opacity = 0; return; }
+        const p = (t * speed + offset) % 1;
+        mote.position.set(baseX + Math.sin(p * Math.PI * 2 + i) * .08, -.68 + p * 1.24, .005);
+        const fade = Math.sin(p * Math.PI);
+        mat.opacity = fade * (.55 + .35 * Math.sin(t * 5.2 + i * 2.1)) * .62 * vis;
+      });
+    }
+  } else if (slug === "teddy-birthday") {
+    const flameTex = flameSprite();
+    const glowTex = glowSprite();
+    const starTex = starSprite();
+
+    // Calibrated exact strawberry-cupcake candle wick on teddy-birthday/base.webp
+    const wickX = .162;
+    const wickY = .017;
+    const haloMat = new THREE.MeshBasicMaterial({
+      map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .48,
+    });
+    const halo = new THREE.Mesh(new THREE.PlaneGeometry(.46, .46), haloMat);
+    halo.position.set(wickX, wickY + .02, .003);
+    halo.renderOrder = 5;
+
+    const flameMat = new THREE.MeshBasicMaterial({
+      map: flameTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .78,
+    });
+    const flame = new THREE.Mesh(new THREE.PlaneGeometry(.14, .21), flameMat);
+    flame.position.set(wickX, wickY + .035, .006);
+    flame.renderOrder = 6;
+    group.add(halo, flame);
+
+    updaters.push((t, vis, reduced) => {
+      const flick = reduced ? 0 : Math.sin(t * 7.4) * .5 + Math.sin(t * 13.1 + 1.4) * .3 + Math.cos(t * 4.5) * .2;
+      const sway = reduced ? 0 : Math.sin(t * 3.8) * .055;
+      flame.scale.set(1 - flick * .06, 1 + flick * .12, 1);
+      flame.rotation.z = sway;
+      flameMat.opacity = (.74 + flick * .14) * vis;
+      halo.scale.setScalar(1 + flick * .09);
+      haloMat.opacity = (.42 + flick * .1) * vis;
+    });
+
+    // Subtle buoyant golden sheen breathing over the champagne-gold heart balloon
+    const balloonGlowMat = new THREE.MeshBasicMaterial({
+      map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .32,
+    });
+    const balloonGlow = new THREE.Mesh(new THREE.PlaneGeometry(.52, .52), balloonGlowMat);
+    balloonGlow.position.set(.655, .666, .004);
+    balloonGlow.renderOrder = 5;
+    group.add(balloonGlow);
+    updaters.push((t, vis, reduced) => {
+      const floatY = reduced ? 0 : Math.sin(t * 1.6) * .035;
+      balloonGlow.position.y = .666 + floatY;
+      const pulse = reduced ? .28 : .2 + .22 * (.5 + .5 * Math.sin(t * 2.1));
+      balloonGlowMat.opacity = pulse * vis;
+    });
+
+    // 6 warm golden wish embers drifting gently upward above the cupcake & teddy
+    for (let i = 0; i < 6; i++) {
+      const mat = new THREE.MeshBasicMaterial({
+        map: starTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0,
+      });
+      const size = .052 + (i % 3) * .02;
+      const ember = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
+      ember.renderOrder = 6;
+      group.add(ember);
+      const baseX = wickX + (i % 3 - 1) * .16 + Math.sin(i * 1.9) * .06;
+      const speed = .13 + (i % 3) * .03;
+      const offset = i * .31;
+      updaters.push((t, vis, reduced) => {
+        if (reduced) { mat.opacity = 0; return; }
+        const p = (t * speed + offset) % 1;
+        ember.position.set(baseX + Math.sin(p * Math.PI * 2 + i) * .055, wickY + .06 + p * .62, .006);
+        const fade = Math.sin(p * Math.PI);
+        const twinkle = .65 + .35 * Math.sin(t * 6.2 + i * 2.1);
+        mat.opacity = fade * twinkle * .7 * vis;
+        ember.scale.setScalar(.72 + fade * .42);
+      });
+    }
+  } else if (slug === "atelier-tea") {
+    const starTex = starSprite();
+    const glowTex = glowSprite();
+
+    // Calibrated exact berry-tart golden sparkler burst tip on atelier-tea/base.webp
+    const spX = .593;
+    const spY = .433;
+    const spHaloMat = new THREE.MeshBasicMaterial({
+      map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .55,
+    });
+    const spHalo = new THREE.Mesh(new THREE.PlaneGeometry(.48, .48), spHaloMat);
+    spHalo.position.set(spX, spY, .004);
+    spHalo.renderOrder = 5;
+
+    const spCoreMat = new THREE.MeshBasicMaterial({
+      map: starTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .88,
+    });
+    const spCore = new THREE.Mesh(new THREE.PlaneGeometry(.24, .24), spCoreMat);
+    spCore.position.set(spX, spY, .006);
+    spCore.renderOrder = 6;
+    group.add(spHalo, spCore);
+
+    updaters.push((t, vis, reduced) => {
+      const crackle = reduced ? 0 : Math.sin(t * 11.5) * .4 + Math.sin(t * 19.3 + 1.1) * .35 + Math.cos(t * 7.2) * .25;
+      spCore.scale.setScalar(.86 + crackle * .22);
+      spCore.rotation.z = reduced ? 0 : t * .55;
+      spCoreMat.opacity = (.78 + crackle * .18) * vis;
+      spHalo.scale.setScalar(.95 + crackle * .14);
+      spHaloMat.opacity = (.42 + crackle * .14) * vis;
+    });
+
+    // 7 tiny radiating golden sparkler sparks popping gently around the sparkler tip
+    for (let i = 0; i < 7; i++) {
+      const mat = new THREE.MeshBasicMaterial({
+        map: starTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0,
+      });
+      const size = .045 + (i % 3) * .016;
+      const spark = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
+      spark.renderOrder = 6;
+      group.add(spark);
+      const angle = (i / 7) * Math.PI * 2 + .35;
+      const speed = .55 + (i % 3) * .16;
+      const offset = i * .23;
+      updaters.push((t, vis, reduced) => {
+        if (reduced) { mat.opacity = 0; return; }
+        const p = (t * speed + offset) % 1;
+        const r = .03 + p * .24;
+        spark.position.set(spX + Math.cos(angle) * r, spY + Math.sin(angle) * r - p * p * .08, .007);
+        const fade = Math.sin(p * Math.PI);
+        mat.opacity = fade * .84 * vis;
+        spark.scale.setScalar(.55 + (1 - p) * .6);
+      });
+    }
+
+    // 6 gently curling warm steam-star motes rising from the rose-painted porcelain teacup
+    for (let i = 0; i < 6; i++) {
+      const mat = new THREE.MeshBasicMaterial({
+        map: i % 2 === 0 ? starTex : glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0,
+      });
+      const size = i % 2 === 0 ? .068 : .13;
+      const wisp = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
+      wisp.renderOrder = 5;
+      group.add(wisp);
+      const speed = .11 + (i % 3) * .025;
+      const offset = i * .27;
+      updaters.push((t, vis, reduced) => {
+        if (reduced) { mat.opacity = 0; return; }
+        const p = (t * speed + offset) % 1;
+        const x = -.499 + Math.sin(p * Math.PI * 2.2 + i) * .14 + (i % 2 ? .04 : -.04);
+        const y = -.14 + p * .86;
+        wisp.position.set(x, y, .005);
+        const fade = Math.sin(p * Math.PI);
+        mat.opacity = fade * (i % 2 === 0 ? .66 : .34) * vis;
+        wisp.scale.setScalar(.7 + fade * .4);
+      });
+    }
   }
 
   return {

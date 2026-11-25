@@ -90,9 +90,9 @@ button:disabled { cursor: default; }
 .gallery-caption strong { display: block; font-family: var(--serif); font-size: 17px; font-weight: 500; line-height: 1.3; letter-spacing: .045em; }
 .gallery-caption > div span { display: block; margin-top: 3px; color: #7e625d; font-family: var(--display); font-size: 17px; line-height: 1; font-style: italic; }
 .gallery-arrow { width: 35px; height: 35px; color: #765f57; background: #ffffffc9; border: 1px solid #ebe1dc; }
-.gallery-dock { z-index: 3; justify-self: center; margin: 0 16px; display: flex; align-items: center; gap: 10px; width: max-content; max-width: calc(100vw - 28px); min-height: 78px; padding: 9px 11px; border-radius: 23px; }
-.dock-templates { display: flex; flex: none; align-items: center; gap: 5px; }
-.swatch { display: grid; place-items: center; position: relative; width: 58px; height: 53px; border: 1px solid transparent; border-radius: 10px; color: var(--accent); background: transparent; transition: border-color .2s, background .2s, transform .2s; }
+.gallery-dock { z-index: 3; justify-self: center; margin: 0 16px; display: flex; align-items: center; gap: 10px; width: max-content; max-width: calc(100vw - 28px); min-height: 76px; padding: 8px 11px; border-radius: 23px; }
+.dock-templates { display: flex; flex: none; align-items: center; gap: 4px; }
+.swatch { display: grid; place-items: center; position: relative; width: 48px; height: 50px; border: 1px solid transparent; border-radius: 10px; color: var(--accent); background: transparent; transition: border-color .2s, background .2s, transform .2s; }
 .swatch:hover { background: #f7f0ee; }
 .swatch-current { background: #f7efec; border-color: #c19b98; }
 .card-thumb { display: block; width: auto; height: 38px; aspect-ratio: .75; border-radius: 2px; box-shadow: 0 2px 5px #291b1747; }
@@ -396,6 +396,16 @@ button:disabled { cursor: default; }
   .toast-layer { top: 8px; }
 }
 
+@media (max-width: 660px) {
+  .gallery-dock { gap: 8px; flex-wrap: wrap; justify-content: center; width: calc(100% - 24px); max-width: 420px; min-height: 0; padding: 8px 10px; border-radius: 20px; }
+  .dock-templates { flex: 1 0 100%; justify-content: center; gap: 4px; }
+  .swatch { width: 40px; height: 44px; border-radius: 8px; }
+  .card-thumb { height: 32px; }
+  .dock-divider { display: none; }
+  .dock-open, .dock-create { flex: 1; min-height: 42px; padding-inline: 12px; font-size: 13px; gap: 5px; }
+  .dock-open svg, .dock-create svg { width: 15px; }
+}
+
 @media (max-width: 480px) {
   .site-header, .gallery-main, .gallery-footer { width: calc(100% - 24px); }
   .brand { gap: 8px; }
@@ -408,13 +418,13 @@ button:disabled { cursor: default; }
   .hero-copy p { max-width: 310px; margin-inline: auto; font-size: 12.5px; }
   .hero-tag { font-size: 11px; padding: 5px 10px; }
   .gallery-display { height: clamp(300px, 50dvh, 400px); width: 100%; }
-  .gallery-dock { gap: 5px; min-height: 58px; padding: 6px 7px; border-radius: 18px; max-width: calc(100vw - 20px); }
-  .dock-templates { gap: 4px; }
-  .swatch { width: 40px; height: 44px; border-radius: 8px; }
+  .gallery-dock { gap: 8px; flex-wrap: wrap; justify-content: center; width: calc(100% - 24px); max-width: 400px; min-height: 0; padding: 8px 10px; border-radius: 20px; }
+  .dock-templates { flex: 1 0 100%; justify-content: center; gap: 4px; }
+  .swatch { width: 38px; height: 42px; border-radius: 8px; }
   .card-thumb { height: 32px; }
-  .dock-divider { margin: 0 1px; height: 28px; }
-  .dock-open, .dock-create { min-height: 42px; padding-inline: 10px; font-size: 12px; gap: 4px; }
-  .dock-open svg, .dock-create svg { width: 14px; }
+  .dock-divider { display: none; }
+  .dock-open, .dock-create { flex: 1; min-height: 42px; padding-inline: 12px; font-size: 13px; gap: 5px; }
+  .dock-open svg, .dock-create svg { width: 15px; }
   .wax-picker { gap: 4px; padding: 5px 6px; border-radius: 16px; }
   .wax-option { min-height: 36px; padding: 3px 8px 3px 4px; font-size: 11px; gap: 4px; }
   .wax-option i { width: 22px; height: 22px; font-size: 11px; }

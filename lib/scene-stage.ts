@@ -35,12 +35,20 @@ type Book = ReturnType<typeof buildBook>;
 type Slot = { x: number; z: number; y: number; pitch: number; yaw: number; roll: number; scale: number };
 
 // Orthographic Z separation guarantees the active card never clips rear cards even at max yaw, mid-flip, or during template switches.
+// 7-template symmetrical 5-card fan (indices 3 & 4 tuck invisibly behind the center stack and glide smoothly into view on scroll).
 export const GALLERY_SLOTS: readonly Slot[] = [
   { x: .04, z: 2.8, y: .04, pitch: .057, yaw: -.078, roll: -.025, scale: 1 },
+  { x: 1.68, z: -1.6, y: .045, pitch: .052, yaw: -.31, roll: -.15, scale: .84 },
+  { x: 2.68, z: -3.9, y: -.135, pitch: .08, yaw: -.52, roll: -.28, scale: .72 },
+  { x: .95, z: -5.8, y: -.24, pitch: .085, yaw: -.22, roll: -.12, scale: .60 },
+  { x: -.95, z: -5.8, y: -.24, pitch: .085, yaw: .22, roll: .12, scale: .60 },
+  { x: -2.68, z: -3.9, y: -.135, pitch: .08, yaw: .52, roll: .28, scale: .72 },
   { x: -1.65, z: -1.6, y: .055, pitch: .052, yaw: .31, roll: .164, scale: .83 },
-  { x: 1.72, z: -2.8, y: -.065, pitch: .063, yaw: -.39, roll: -.19, scale: .84 },
-  { x: -2.71, z: -4.2, y: -.155, pitch: .085, yaw: .54, roll: .303, scale: .724 },
 ];
+
+export function isGallerySlotHidden(offset: number) {
+  return offset === 3 || offset === 4;
+}
 
 export function galleryOffset(slug: TemplateSlug, selected: TemplateSlug) {
   const active = TEMPLATES.findIndex((item) => item.slug === selected);
@@ -459,10 +467,16 @@ export function createStage(
     for (const [slug, entry] of books) {
       const active = slug === activeSlug;
       const { book, shadow, contact } = entry;
-      const sideSlot = gallery ? GALLERY_SLOTS[galleryOffset(slug, activeSlug)] : GALLERY_SLOTS[0];
-      const visible = active ? displayBook : gallery && open < .76;
+      const sideOffset = gallery ? galleryOffset(slug, activeSlug) : 0;
+      const sideSlot = GALLERY_SLOTS[sideOffset] ?? GALLERY_SLOTS[0];
+      const visible = active ? displayBook : gallery && open < .76 && !isGallerySlotHidden(sideOffset);
       book.root.visible = shadow.visible = contact.visible = visible;
-      if (!visible) continue;
+      if (!visible) {
+        if (gallery && isGallerySlotHidden(sideOffset)) {
+          updateBookPose(book, sideSlot.x, sideSlot.y, sideSlot.z, sideSlot.pitch, sideSlot.yaw, sideSlot.roll, sideSlot.scale, 0, dt, true);
+        }
+        continue;
+      }
       book.animate(elapsed, active ? totalYaw : sideSlot.yaw * .3, active ? totalPitch : 0, active ? open : 0, reducedMotion, active ? props.draggingSticker : null);
 
       if (gallery) {

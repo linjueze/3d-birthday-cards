@@ -37,6 +37,9 @@ export const COVER_MANIFEST: Record<TemplateSlug, CoverMaterialManifest> = {
   "starry-wish": { procedural: coverArt, maps: coverMaps("starry-wish") },
   "bloom-garden": { procedural: coverArt, maps: coverMaps("bloom-garden") },
   "confetti-atelier": { procedural: coverArt, maps: coverMaps("confetti-atelier") },
+  "sakura-mail": { procedural: coverArt, maps: coverMaps("sakura-mail") },
+  "teddy-birthday": { procedural: coverArt, maps: coverMaps("teddy-birthday") },
+  "atelier-tea": { procedural: coverArt, maps: coverMaps("atelier-tea") },
 };
 
 const covers = new Map<TemplateSlug, CoverArt>();
@@ -358,6 +361,9 @@ const marks: Record<TemplateSlug, string> = {
   "starry-wish": "M 24 -68 C -18 -82 -67 -56 -71 -10 C -77 47 -32 75 9 65 C 37 58 58 36 61 20 C 14 43 -30 13 -31 -22 C -32 -45 -8 -64 24 -68Z M 33 -27 l 6 15 l 15 6 l -15 6 l -6 15 l -6 -15 l -15 -6 l 15 -6Z",
   "bloom-garden": "M -60 -30 H 60 V 44 H -60 Z M -60 -30 L 0 16 L 60 -30 M -60 44 L -22 2 M 60 44 L 22 2 M -7 9 C -18 2 -19 -11 -12 -22 C -4 -17 2 -13 0 -3 M 7 9 C 18 2 19 -11 12 -22 C 4 -17 -2 -13 0 -3 M -25 -38 C -58 -44 -61 -62 -58 -68 C -50 -71 -28 -57 -25 -38 M 25 -38 C 58 -44 61 -62 58 -68 C 50 -71 28 -57 25 -38",
   "confetti-atelier": "M -56 52 V -15 H 56 V 52Z M -61 -15 V -35 H 61 V -15 M -9 -35 V 52 M 9 -35 V 52 M 0 -35 C -14 -71 -46 -76 -45 -57 C -43 -41 -17 -34 0 -35 C 14 -71 46 -76 45 -57 C 43 -41 17 -34 0 -35Z",
+  "sakura-mail": "M -58 -24 H 58 V 42 H -58 Z M -58 -24 L 0 16 L 58 -24 M 0 16 C -10 2 -24 14 0 32 C 24 14 10 2 0 16 Z",
+  "teddy-birthday": "M -46 18 C -46 -22 46 -22 46 18 C 46 56 -46 56 -46 18 Z M -36 -16 C -52 -32 -32 -52 -16 -36 M 36 -16 C 52 -32 32 -52 16 -36 M -12 6 H 12",
+  "atelier-tea": "M -52 38 Q 0 54 52 38 M -44 -14 H 34 C 34 26 -44 26 -44 -14 Z M 34 -6 C 56 -6 56 18 26 18 M -16 -30 Q -8 -44 -16 -56 M 6 -30 Q 14 -44 6 -56",
 };
 
 function engravedMark(ctx: CanvasRenderingContext2D, slug: TemplateSlug, x: number, y: number, size: number, tint: string | CanvasGradient) {
@@ -377,6 +383,9 @@ const insideMottos: Record<TemplateSlug, string> = {
   "starry-wish": "All your wishes, safely kept",
   "bloom-garden": "Picked fresh for your special day",
   "confetti-atelier": "Cheers to another wonderful year",
+  "sakura-mail": "Blooming softly with love",
+  "teddy-birthday": "Warm hugs & sweetest wishes",
+  "atelier-tea": "A warm cup for your new year",
 };
 
 function leftCornerFiligree(ctx: CanvasRenderingContext2D, x: number, y: number, flipX: number, flipY: number, tint: string | CanvasGradient) {

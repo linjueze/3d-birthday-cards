@@ -202,7 +202,7 @@ class BinaryReader {
   }
 }
 
-function packBinaryV2(draft: CardDraft, deliverAt: string | null): Uint8Array {
+function packBinaryV3(draft: CardDraft, deliverAt: string | null): Uint8Array {
   const w = new BinaryWriter();
   const tIdx = Math.max(0, TEMPLATES.findIndex((item) => item.slug === draft.template));
   const pIdx = Math.max(0, PAPER_OPTIONS.findIndex((item) => item.id === draft.paper));
@@ -225,10 +225,10 @@ function packBinaryV2(draft: CardDraft, deliverAt: string | null): Uint8Array {
   const motto = (draft.motto ?? "").trim().slice(0, MAX_MOTTO_LENGTH);
   const stickers = draft.stickers.slice(0, MAX_STICKERS);
 
-  // Compact 3-byte bit-packed header (zero JSON overhead!)
-  w.u8((tIdx & 0x03) | ((pIdx & 0x03) << 2) | ((fIdx & 0x03) << 4) | ((iIdx & 0x03) << 6));
-  w.u8((wIdx & 0x03) | ((musicCode & 0x07) << 2) | (birthday ? 0x20 : 0) | (deliverMinutes ? 0x40 : 0) | (motto ? 0x80 : 0));
-  w.u8(stickers.length & 0xff);
+  // Compact 3-byte v3 bit-packed header supporting up to 16 templates (zero JSON overhead!)
+  w.u8((tIdx & 0x0f) | ((pIdx & 0x03) << 4) | ((fIdx & 0x03) << 6));
+  w.u8((iIdx & 0x03) | ((wIdx & 0x03) << 2) | ((musicCode & 0x07) << 4) | (motto ? 0x80 : 0));
+  w.u8((stickers.length & 0x3f) | (birthday ? 0x40 : 0) | (deliverMinutes ? 0x80 : 0));
 
   w.str(draft.recipient.trim().slice(0, MAX_NAME_LENGTH));
   w.str(draft.message.slice(0, MAX_MESSAGE_LENGTH));
@@ -259,22 +259,23 @@ function packBinaryV2(draft: CardDraft, deliverAt: string | null): Uint8Array {
   return w.toBytes();
 }
 
-function unpackBinaryV2(bytes: Uint8Array): SharedLetterPayload | null {
+function unpackBinary(bytes: Uint8Array, version: 2 | 3): SharedLetterPayload | null {
   try {
     const r = new BinaryReader(bytes);
     const b0 = r.u8();
     const b1 = r.u8();
-    const stickerCount = Math.min(MAX_STICKERS, r.u8());
+    const b2 = r.u8();
 
-    const template = TEMPLATES[b0 & 0x03]?.slug;
-    const paper = PAPER_OPTIONS[(b0 >> 2) & 0x03]?.id ?? "watercolor";
-    const font = FONT_OPTIONS[(b0 >> 4) & 0x03]?.id ?? "serif";
-    const ink = INK_OPTIONS[(b0 >> 6) & 0x03]?.id ?? "sepia";
-    const wax = WAX_OPTIONS[b1 & 0x03]?.id ?? "rose";
-    const musicCode = (b1 >> 2) & 0x07;
-    const hasBirthday = Boolean(b1 & 0x20);
-    const hasDeliverAt = Boolean(b1 & 0x40);
+    const template = TEMPLATES[version === 3 ? (b0 & 0x0f) : (b0 & 0x03)]?.slug;
+    const paper = PAPER_OPTIONS[version === 3 ? ((b0 >> 4) & 0x03) : ((b0 >> 2) & 0x03)]?.id ?? "watercolor";
+    const font = FONT_OPTIONS[version === 3 ? ((b0 >> 6) & 0x03) : ((b0 >> 4) & 0x03)]?.id ?? "serif";
+    const ink = INK_OPTIONS[version === 3 ? (b1 & 0x03) : ((b0 >> 6) & 0x03)]?.id ?? "sepia";
+    const wax = WAX_OPTIONS[version === 3 ? ((b1 >> 2) & 0x03) : (b1 & 0x03)]?.id ?? "rose";
+    const musicCode = version === 3 ? ((b1 >> 4) & 0x07) : ((b1 >> 2) & 0x07);
     const hasMotto = Boolean(b1 & 0x80);
+    const hasBirthday = version === 3 ? Boolean(b2 & 0x40) : Boolean(b1 & 0x20);
+    const hasDeliverAt = version === 3 ? Boolean(b2 & 0x80) : Boolean(b1 & 0x40);
+    const stickerCount = Math.min(MAX_STICKERS, version === 3 ? (b2 & 0x3f) : b2);
     if (!template) return null;
 
     const recipient = r.str().trim().slice(0, MAX_NAME_LENGTH);
@@ -351,30 +352,37 @@ function unpackBinaryV2(bytes: Uint8Array): SharedLetterPayload | null {
 }
 
 /**
- * Encodes a birthday letter into an ultra-compact binary token (`2.` raw / `3.` deflated),
- * typically 55-65% shorter than JSON tokens while staying 100% static & self-contained.
+ * Encodes a birthday letter into an ultra-compact v3 binary token (`4.` raw / `5.` deflated),
+ * supporting up to 16 cover templates while staying 55-65% shorter than JSON tokens.
  */
 export async function encodeSharedLetter(draft: CardDraft, deliverAt: string | null): Promise<string> {
-  const packed = packBinaryV2(draft, deliverAt);
+  const packed = packBinaryV3(draft, deliverAt);
   const compressed = await compressDeflateRaw(packed);
   if (compressed && compressed.length < packed.length) {
-    return `3.${bytesToBase64Url(compressed)}`;
+    return `5.${bytesToBase64Url(compressed)}`;
   }
-  return `2.${bytesToBase64Url(packed)}`;
+  return `4.${bytesToBase64Url(packed)}`;
 }
 
-/** Decodes both new ultra-short binary tokens (`2.`/`3.`) and legacy JSON v1 tokens (`z.`/`u.`). */
+/** Decodes v3 binary (`4.`/`5.`), legacy v2 binary (`2.`/`3.`), and legacy v1 JSON (`z.`/`u.`) tokens. */
 export async function decodeSharedLetter(token: string): Promise<SharedLetterPayload | null> {
   try {
     const trimmed = token.trim();
     if (!trimmed || trimmed.length > 12000) return null;
 
+    if (trimmed.startsWith("4.")) {
+      return unpackBinary(base64UrlToBytes(trimmed.slice(2)), 3);
+    }
+    if (trimmed.startsWith("5.")) {
+      const bytes = await decompressDeflateRaw(base64UrlToBytes(trimmed.slice(2)));
+      return bytes ? unpackBinary(bytes, 3) : null;
+    }
     if (trimmed.startsWith("2.")) {
-      return unpackBinaryV2(base64UrlToBytes(trimmed.slice(2)));
+      return unpackBinary(base64UrlToBytes(trimmed.slice(2)), 2);
     }
     if (trimmed.startsWith("3.")) {
       const bytes = await decompressDeflateRaw(base64UrlToBytes(trimmed.slice(2)));
-      return bytes ? unpackBinaryV2(bytes) : null;
+      return bytes ? unpackBinary(bytes, 2) : null;
     }
 
     // Legacy v1 JSON format (`z.` / `u.`) preserved for 100% backward compatibility

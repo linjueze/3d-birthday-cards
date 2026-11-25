@@ -94,6 +94,9 @@
 .starry-wish { --paper: #303752; --edge: #b59c64; --ink: #ead6a9; }
 .bloom-garden { --paper: #e1e3d3; --edge: #b8ba91; --ink: #666c47; }
 .confetti-atelier { --paper: #773447; --edge: #bc9360; --ink: #f1cf96; }
+.sakura-mail { --paper: #f2dce0; --edge: #d2a878; --ink: #7c3f4d; }
+.teddy-birthday { --paper: #ebd5bc; --edge: #c79a61; --ink: #6d4531; }
+.atelier-tea { --paper: #dce4d3; --edge: #b59a63; --ink: #51604a; }
 
 .recipient {
   margin: 0;

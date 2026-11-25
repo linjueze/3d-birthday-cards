@@ -6,6 +6,9 @@ export const coverPalette = {
   "starry-wish": { top: "#384664", middle: "#263655", bottom: "#151e39", ink: "#e4c18b", lettering: "#f4d399", arch: "#45516c", archBottom: "#222941", dark: true },
   "bloom-garden": { top: "#dfdfc5", middle: "#c3ceb6", bottom: "#a1ae95", ink: "#586047", lettering: "#5c6350", arch: "#ead9ce", archBottom: "#d6bfac", dark: false },
   "confetti-atelier": { top: "#924c54", middle: "#7e3c48", bottom: "#692f3c", ink: "#efd2a2", lettering: "#fbe0ab", arch: "#a86164", archBottom: "#883d4c", dark: true },
+  "sakura-mail": { top: "#f5e3e5", middle: "#e8c8cc", bottom: "#d6adb2", ink: "#7c3f4d", lettering: "#8a4253", arch: "#fdf5f2", archBottom: "#f3dfe0", dark: false },
+  "teddy-birthday": { top: "#f5e6d2", middle: "#e2c6a6", bottom: "#cca982", ink: "#6d4531", lettering: "#784930", arch: "#fbf4e8", archBottom: "#eedcc3", dark: false },
+  "atelier-tea": { top: "#e4ebd9", middle: "#cfd9c5", bottom: "#b4c3a8", ink: "#51604a", lettering: "#4e5d46", arch: "#f8f4e8", archBottom: "#eae2ce", dark: false },
 } satisfies Record<TemplateSlug, Record<string, string | boolean>>;
 
 function arch(inset: number) {
@@ -145,14 +148,36 @@ function title(ctx: CanvasRenderingContext2D, slug: TemplateSlug) {
     drawPath(ctx, "M 237 306 C 225 318 187 319 192 304 C 195 294 215 301 217 318 M 523 299 C 540 286 559 294 551 307 C 544 318 516 321 505 327 M 265 410 C 300 426 360 424 391 418 C 427 411 466 403 509 418", undefined, palette.lettering, 1.45);
   } else {
     ctx.font = 'italic 77px "Baskerville", "Palatino Linotype", Georgia, serif';
-    ctx.fillText({ "starry-wish": "Make a", "bloom-garden": "Birthday", "confetti-atelier": "Let’s" }[slug], 384, 309);
+    ctx.fillText({
+      "starry-wish": "Make a",
+      "bloom-garden": "Birthday",
+      "confetti-atelier": "Let’s",
+      "sakura-mail": "With Love",
+      "teddy-birthday": "Happy",
+      "atelier-tea": "Birthday",
+    }[slug], 384, 309);
     ctx.font = 'italic 104px "Baskerville", "Palatino Linotype", Georgia, serif';
-    ctx.fillText({ "starry-wish": "Wish", "bloom-garden": "Bloom", "confetti-atelier": "Celebrate" }[slug], 384, 397);
+    ctx.fillText({
+      "starry-wish": "Wish",
+      "bloom-garden": "Bloom",
+      "confetti-atelier": "Celebrate",
+      "sakura-mail": "Sakura",
+      "teddy-birthday": "Birthday",
+      "atelier-tea": "Tea Time",
+    }[slug], 384, 397);
   }
   ctx.shadowColor = "transparent";
   ctx.font = '19px "Inter", Arial, sans-serif';
   ctx.fillStyle = palette.ink;
-  spacedText(ctx, { "candlelight-cake": "MAKE A LITTLE WISH", "starry-wish": "UNDER THE SAME SKY", "bloom-garden": "GROW WITH LOVE", "confetti-atelier": "A DAY THAT IS YOURS" }[slug], 384, 869, 4.8);
+  spacedText(ctx, {
+    "candlelight-cake": "MAKE A LITTLE WISH",
+    "starry-wish": "UNDER THE SAME SKY",
+    "bloom-garden": "GROW WITH LOVE",
+    "confetti-atelier": "A DAY THAT IS YOURS",
+    "sakura-mail": "BLOOMING SOFTLY WITH LOVE",
+    "teddy-birthday": "WARM HUGS & SWEET WISHES",
+    "atelier-tea": "A WARM CUP FOR YOUR NEW YEAR",
+  }[slug], 384, 869, 4.8);
   ctx.restore();
 }
 
@@ -339,6 +364,14 @@ function party(ctx: CanvasRenderingContext2D) {
 
 export function coverIllustration(ctx: CanvasRenderingContext2D, slug: TemplateSlug) {
   title(ctx, slug);
-  const illustrations = { "candlelight-cake": cake, "starry-wish": moon, "bloom-garden": flowerRing, "confetti-atelier": party };
+  const illustrations: Record<TemplateSlug, (context: CanvasRenderingContext2D) => void> = {
+    "candlelight-cake": cake,
+    "starry-wish": moon,
+    "bloom-garden": flowerRing,
+    "confetti-atelier": party,
+    "sakura-mail": flowerRing,
+    "teddy-birthday": cake,
+    "atelier-tea": flowerRing,
+  };
   illustrations[slug](ctx);
 }

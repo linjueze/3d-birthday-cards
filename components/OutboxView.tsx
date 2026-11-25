@@ -1,6 +1,6 @@
 "use client";
 
-import { CakeSlice, Copy, ExternalLink, Flower2, Gift, LockKeyhole, Mail, MoonStar, Plus, Trash2 } from "lucide-react";
+import { CakeSlice, Coffee, Copy, ExternalLink, Flower2, Gift, Heart, LockKeyhole, Mail, MoonStar, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { TEMPLATES } from "@/lib/cards";
@@ -13,6 +13,9 @@ const templateIcons = {
   "starry-wish": MoonStar,
   "bloom-garden": Flower2,
   "confetti-atelier": Gift,
+  "sakura-mail": Mail,
+  "teddy-birthday": Heart,
+  "atelier-tea": Coffee,
 };
 
 const timestamp = new Intl.DateTimeFormat("en-US", {

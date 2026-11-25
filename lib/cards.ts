@@ -3,6 +3,9 @@ export const TEMPLATES = [
   { slug: "starry-wish", name: "星月许愿", english: "Starry Wish", color: "#192644", ink: "#e4c997", accent: "#d7b777", description: "把愿望托付给一弯金色的月亮。" },
   { slug: "bloom-garden", name: "花束花园", english: "Bloom Garden", color: "#e9d8d5", ink: "#6d7051", accent: "#a8935e", description: "一束复古花园里刚摘下的花。" },
   { slug: "confetti-atelier", name: "礼盒派对", english: "Confetti Atelier", color: "#713244", ink: "#f3d7a7", accent: "#d2a36d", description: "丝带、礼盒和热闹的一声惊喜。" },
+  { slug: "sakura-mail", name: "樱花来信", english: "Sakura Post", color: "#e8c8cc", ink: "#7c3f4d", accent: "#c5985c", description: "粉樱垂枝、丝带情书与金色蝴蝶。" },
+  { slug: "teddy-birthday", name: "奶油小熊", english: "Teddy's Birthday", color: "#e2c6a6", ink: "#6d4531", accent: "#c29252", description: "戴着派对帽的小熊、草莓杯糕与暖金气球。" },
+  { slug: "atelier-tea", name: "森系茶会", english: "Atelier Tea Party", color: "#cfd9c5", ink: "#51604a", accent: "#b29456", description: "骨瓷花茶、马卡龙与仙女棒莓果塔。" },
 ] as const;
 
 export type TemplateSlug = typeof TEMPLATES[number]["slug"];
@@ -236,6 +239,48 @@ export const STUDIO_INSPIRATIONS: readonly StudioInspiration[] = [
     stickers: [
       { type: "champagne", x: .24, y: .77, scale: .92, rotation: -6 },
       { type: "balloon", x: .79, y: .28, scale: .88, rotation: 7 },
+    ],
+  },
+  {
+    name: "春樱飞书笺",
+    template: "sakura-mail",
+    paper: "pearl",
+    font: "serif",
+    ink: "berry",
+    wax: "cream",
+    motto: "愿春风与花瓣把偏爱送到你身旁",
+    message: "生日快乐！愿你新的一岁如春樱般温柔明媚，所遇皆欢喜。",
+    stickers: [
+      { type: "bow", x: .24, y: .78, scale: .88, rotation: -8 },
+      { type: "bouquet", x: .78, y: .28, scale: .84, rotation: 9 },
+    ],
+  },
+  {
+    name: "暖烘烘小熊派对",
+    template: "teddy-birthday",
+    paper: "watercolor",
+    font: "long-cang",
+    ink: "sepia",
+    wax: "gold",
+    motto: "Warm hugs & sweetest wishes",
+    message: "又长大一岁啦！愿你永远被软乎乎的拥抱和甜滋滋的小确幸包围。",
+    stickers: [
+      { type: "hat", x: .24, y: .77, scale: .9, rotation: -6 },
+      { type: "cake", x: .78, y: .28, scale: .85, rotation: 8 },
+    ],
+  },
+  {
+    name: "午后森系茶话会",
+    template: "atelier-tea",
+    paper: "kraft",
+    font: "serif",
+    ink: "pine",
+    wax: "sage",
+    motto: "A warm cup for your new year",
+    message: "愿新的一岁不慌不忙，有好茶、有甜点，也有一直陪在身旁的人。",
+    stickers: [
+      { type: "gift", x: .24, y: .78, scale: .88, rotation: -7 },
+      { type: "star", x: .79, y: .26, scale: .78, rotation: 11 },
     ],
   },
 ];
