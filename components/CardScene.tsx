@@ -3,7 +3,7 @@
 import { RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type RefObject } from "react";
 import { COVER_MANIFEST, COVER_PREVIEW_DATA_URI, coverArt, getInitialCoverBase, insideArt, linerArt, loadCoverBase, loadCoverPreview, loadInsideArt, STICKER_BASE_SIZE, stickerArt } from "@/lib/art";
-import { TEMPLATES, type TemplateSlug } from "@/lib/cards";
+import { TEMPLATES, WAX_OPTIONS, type TemplateSlug } from "@/lib/cards";
 import { createStage, FALLBACK_TIMINGS, GALLERY_SLOTS, galleryOffset, MAX_ZOOM, MIN_ZOOM, type SceneHit, type SceneProps, type SceneStage } from "@/lib/scene-stage";
 import "@/lib/scene-fallback.css";
 
@@ -68,8 +68,9 @@ function Fallback({ draft, mode, envelope, open, sealProgress, selectedSticker }
   const gallery = mode === "gallery";
   const packPhase = envelope === "packing" || envelope === "breaking";
   const envelopeVisible = !!envelope && envelope !== "none" && envelope !== "opened";
+  const waxPreset = WAX_OPTIONS.find((item) => item.id === draft.wax) ?? WAX_OPTIONS[0];
   return (
-    <div className="scene-fallback" data-phase={envelope ?? "none"} aria-hidden="true">
+    <div className="scene-fallback" data-phase={envelope ?? "none"} style={{ "--wax-color": waxPreset.color, "--wax-stamp": waxPreset.stamp } as CSSProperties} aria-hidden="true">
       {gallery && TEMPLATES.filter((template) => template.slug !== draft.template).map((template) => {
         const slot = GALLERY_SLOTS[galleryOffset(template.slug, draft.template)];
         const style = {
@@ -99,7 +100,12 @@ function Fallback({ draft, mode, envelope, open, sealProgress, selectedSticker }
                     sticker={sticker.id}
                     image={stickerArt(sticker.type)}
                     className={selectedSticker === sticker.id ? "scene-fallback-sticker is-selected" : "scene-fallback-sticker"}
-                    style={{ left: sticker.x * 100 + "%", top: sticker.y * 100 + "%", width: STICKER_BASE_SIZE * sticker.scale * 100 + "%" }}
+                    style={{
+                      left: sticker.x * 100 + "%",
+                      top: sticker.y * 100 + "%",
+                      width: STICKER_BASE_SIZE * sticker.scale * 100 + "%",
+                      transform: sticker.rotation ? `rotate(${sticker.rotation}deg)` : undefined,
+                    }}
                   />
                 ))}
               </>
@@ -119,7 +125,7 @@ function Fallback({ draft, mode, envelope, open, sealProgress, selectedSticker }
           <div className="scene-envelope-pocket" />
           <div className="scene-envelope-flap"><PaintedCanvas image={linerArt()} /></div>
           {envelope === "sealed" || envelope === "breaking" ? (
-            <div className="scene-envelope-stamp"><span>✦</span><span>✦</span></div>
+            <div className="scene-envelope-stamp"><span>{waxPreset.glyph}</span><span>{waxPreset.glyph}</span></div>
           ) : (
             <div className="scene-envelope-molten" style={{ "--seal-progress": sealProgress ?? 0 } as CSSProperties} />
           )}

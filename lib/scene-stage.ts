@@ -136,6 +136,11 @@ export function createStage(
   let requestedYaw = 0;
   let pitch = 0;
   let yaw = 0;
+  let targetGyroPitch = 0;
+  let targetGyroYaw = 0;
+  let gyroPitch = 0;
+  let gyroYaw = 0;
+  let baseBeta: number | null = null;
   let requestedZoom = 1;
   let zoom = 1;
   let requestedPanX = 0;
@@ -224,6 +229,20 @@ export function createStage(
   };
   document.addEventListener("visibilitychange", resume);
   reduced.addEventListener("change", resume);
+
+  // Subtle mobile gyroscope micro-tilt drives both 3D parallax and living gold-foil light sweep.
+  const handleOrientation = (event: DeviceOrientationEvent) => {
+    if (reduced.matches || event.gamma === null || event.beta === null) return;
+    if (baseBeta === null) baseBeta = THREE.MathUtils.clamp(event.beta, 15, 75);
+    const nx = THREE.MathUtils.clamp(event.gamma / 36, -1, 1);
+    const ny = THREE.MathUtils.clamp((event.beta - baseBeta) / 36, -1, 1);
+    targetGyroYaw = nx * .15;
+    targetGyroPitch = ny * .11;
+    wake(360);
+  };
+  if (typeof window !== "undefined" && "DeviceOrientationEvent" in window) {
+    window.addEventListener("deviceorientation", handleOrientation, { passive: true });
+  }
 
   function handleContextLoss(event: Event) {
     event.preventDefault();
@@ -355,6 +374,11 @@ export function createStage(
     open = reducedMotion ? Number(Boolean(props.open) && !showEnvelope) : damp(open, Number(Boolean(props.open) && !showEnvelope), 8.7, dt);
     pitch = damp(pitch, requestedPitch, 14, dt);
     yaw = damp(yaw, requestedYaw, 14, dt);
+    const gyroWeight = !reducedMotion && zoom < 1.08 && !showEnvelope ? (1 - open * .55) : 0;
+    gyroPitch = damp(gyroPitch, targetGyroPitch * gyroWeight, 7, dt);
+    gyroYaw = damp(gyroYaw, targetGyroYaw * gyroWeight, 7, dt);
+    const totalPitch = pitch + gyroPitch;
+    const totalYaw = yaw + gyroYaw;
     zoom = reducedMotion ? requestedZoom : damp(zoom, requestedZoom, 12, dt);
     panX = reducedMotion ? requestedPanX : damp(panX, requestedPanX, 12, dt);
     panY = reducedMotion ? requestedPanY : damp(panY, requestedPanY, 12, dt);
@@ -399,7 +423,7 @@ export function createStage(
       const visible = active ? displayBook : gallery && open < .76;
       book.root.visible = shadow.visible = contact.visible = visible;
       if (!visible) continue;
-      book.animate(elapsed, active ? yaw : sideSlot.yaw * .3, active ? pitch : 0, active ? open : 0, reducedMotion);
+      book.animate(elapsed, active ? totalYaw : sideSlot.yaw * .3, active ? totalPitch : 0, active ? open : 0, reducedMotion);
 
       if (gallery) {
         const mobileX = mobile ? .86 : 1;
@@ -410,7 +434,7 @@ export function createStage(
         const targetZ = active ? sideSlot.z + Math.min(1.1, travel * .55) : sideSlot.z - Math.min(.9, travel * .3);
         updateBookPose(
           book, displaced, sideSlot.y + drift * (active ? 1 : .4), targetZ,
-          sideSlot.pitch + (active ? pitch : 0), sideSlot.yaw * (1 - open * .75) + (active ? yaw : 0),
+          sideSlot.pitch + (active ? totalPitch : 0), sideSlot.yaw * (1 - open * .75) + (active ? totalYaw : 0),
           sideSlot.roll * (1 - open * .84), scale, active ? open : 0, dt, reducedMotion,
         );
         updateBookShadow(entry, active ? .47 : .31 * (1 - open), active ? open * 1.55 : 0);
@@ -440,13 +464,14 @@ export function createStage(
       } else {
         const x = open * CARD_WIDTH / 2;
         const baseYaw = -.10 * (1 - open * .84);
-        updateBookPose(book, x, .035 + drift, .30, .057 + pitch, baseYaw + yaw, -.025 * (1 - open * .75), 1, open, dt, initial || reducedMotion);
+        updateBookPose(book, x, .035 + drift, .30, .057 + totalPitch, baseYaw + totalYaw, -.025 * (1 - open * .75), 1, open, dt, initial || reducedMotion);
         updateBookShadow(entry, .46, open * 1.58);
       }
     }
 
     envelope.root.visible = envShadow.visible = showEnvelope;
     if (showEnvelope) {
+      envelope.setWax(draft.wax ?? "rose");
       const env = envelope.root;
       let positionY = drift;
       let envRx = .02;
@@ -607,6 +632,7 @@ export function createStage(
     cancelAnimationFrame(frame);
     document.removeEventListener("visibilitychange", resume);
     reduced.removeEventListener("change", resume);
+    window.removeEventListener("deviceorientation", handleOrientation);
     renderer.domElement.removeEventListener("webglcontextlost", handleContextLoss);
     document.fonts?.removeEventListener("loadingdone", refreshFonts);
     for (const { book } of books.values()) book.deactivate();

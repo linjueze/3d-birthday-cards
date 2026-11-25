@@ -167,17 +167,17 @@
 .scene-envelope-stamp span,
 .scene-envelope-molten {
   border-radius: 45% 53% 47% 50%;
-  background: radial-gradient(circle at 32% 25%, #be6278, #942c46 62%, #72223b);
-  box-shadow: inset 0 -.4rem .6rem #5e182a97, inset 0 .13rem .22rem #ffeab66a, 0 .22rem .35rem #63342042;
+  background: radial-gradient(circle at 32% 25%, var(--wax-stamp, #be6278), var(--wax-color, #942c46) 64%, color-mix(in srgb, var(--wax-color, #942c46) 72%, #241016));
+  box-shadow: inset 0 -.4rem .6rem #5e182a70, inset 0 .13rem .22rem #ffeab66a, 0 .22rem .35rem #63342042;
 }
 .scene-envelope-stamp span {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
-  color: #db8396;
+  color: var(--wax-stamp, #db8396);
   font-size: calc(var(--wax-size) * .56);
-  text-shadow: 0 1px 1px #662037;
+  text-shadow: 0 1px 1px #421822;
 }
 .scene-envelope-stamp span::before {
   content: "";

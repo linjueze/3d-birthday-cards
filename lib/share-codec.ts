@@ -1,11 +1,13 @@
 import {
-  FONT_OPTIONS, isTemplateSlug, PAPER_OPTIONS, STICKERS,
-  type CardDraft, type Sticker, type TemplateSlug,
+  defaultDraft, FONT_OPTIONS, isTemplateSlug, isWaxId, PAPER_OPTIONS, STICKERS,
+  type CardDraft, type Sticker, type TemplateSlug, type WaxId,
 } from "./cards";
 import { MAX_MESSAGE_LENGTH, MAX_NAME_LENGTH, MAX_STICKERS } from "./letters";
 
 export const BASE_PATH = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/$/, "");
 export const LOCAL_OUTBOX_KEY = "birthday-cards:static-outbox-v1";
+export const EDITOR_DRAFT_KEY = "birthday-cards:editor-draft-v1";
+export const MAX_MOTTO_LENGTH = 60;
 
 export function withBasePath(path: string) {
   const clean = path.startsWith("/") ? path : `/${path}`;
@@ -37,7 +39,9 @@ interface CompactLetter {
   b: string;
   k: "m" | "";
   d: string;
-  st: [number, number, number, number][];
+  st: ([number, number, number, number] | [number, number, number, number, number])[];
+  w?: WaxId;
+  mt?: string;
 }
 
 function bytesToBase64Url(bytes: Uint8Array): string {
@@ -81,6 +85,8 @@ async function decompressDeflateRaw(data: Uint8Array): Promise<Uint8Array | null
 }
 
 export async function encodeSharedLetter(draft: CardDraft, deliverAt: string | null): Promise<string> {
+  const wax = isWaxId(draft.wax) ? draft.wax : "rose";
+  const motto = (draft.motto ?? "").trim().slice(0, MAX_MOTTO_LENGTH);
   const compact: CompactLetter = {
     v: 1,
     t: draft.template,
@@ -94,13 +100,17 @@ export async function encodeSharedLetter(draft: CardDraft, deliverAt: string | n
     d: deliverAt || "",
     st: draft.stickers.slice(0, MAX_STICKERS).map((sticker) => {
       const idx = Math.max(0, STICKERS.findIndex((item) => item.id === sticker.type));
-      return [
+      const rot = Math.round(Math.min(35, Math.max(-35, sticker.rotation ?? 0)));
+      const base: [number, number, number, number] = [
         idx,
         Math.round(Math.min(1, Math.max(0, sticker.x)) * 1000),
         Math.round(Math.min(1, Math.max(0, sticker.y)) * 1000),
         Math.round(Math.min(2, Math.max(.3, sticker.scale)) * 100),
       ];
+      return rot ? [...base, rot] : base;
     }),
+    ...(wax !== "rose" ? { w: wax } : {}),
+    ...(motto ? { mt: motto } : {}),
   };
 
   const raw = new TextEncoder().encode(JSON.stringify(compact));
@@ -141,18 +151,25 @@ export async function decodeSharedLetter(token: string): Promise<SharedLetterPay
     if (Array.isArray(parsed.st)) {
       parsed.st.slice(0, MAX_STICKERS).forEach((entry, index) => {
         if (!Array.isArray(entry) || entry.length < 4) return;
-        const [typeIdx, xInt, yInt, scaleInt] = entry;
+        const [typeIdx, xInt, yInt, scaleInt, rotInt] = entry;
         const def = typeof typeIdx === "number" ? STICKERS[typeIdx] : undefined;
         if (!def || typeof xInt !== "number" || typeof yInt !== "number" || typeof scaleInt !== "number") return;
+        const rotation = typeof rotInt === "number" && Number.isFinite(rotInt)
+          ? Math.round(Math.min(35, Math.max(-35, rotInt)))
+          : 0;
         stickers.push({
           id: `st-${index}`,
           type: def.id,
           x: Math.min(.96, Math.max(.04, xInt / 1000)),
           y: Math.min(.96, Math.max(.04, yInt / 1000)),
           scale: Math.min(2, Math.max(.3, scaleInt / 100)),
+          rotation,
         });
       });
     }
+
+    const wax = isWaxId(parsed.w) ? parsed.w : "rose";
+    const motto = typeof parsed.mt === "string" ? parsed.mt.trim().slice(0, MAX_MOTTO_LENGTH) : "";
 
     return {
       draft: {
@@ -165,6 +182,8 @@ export async function decodeSharedLetter(token: string): Promise<SharedLetterPay
         birthday,
         stickers,
         music: parsed.k === "m" ? { kind: "music-box" } : { kind: "none" },
+        wax,
+        motto,
       },
       deliverAt,
     };
@@ -210,4 +229,71 @@ export function deleteLocalOutboxItem(id: string): LocalOutboxItem[] {
     // Ignore storage errors.
   }
   return next;
+}
+
+export function loadEditorDraft(): CardDraft | null {
+  try {
+    const raw = localStorage.getItem(EDITOR_DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<CardDraft>;
+    if (!parsed || !isTemplateSlug(parsed.template)) return null;
+    const base = defaultDraft(parsed.template);
+    const paper = PAPER_OPTIONS.find((item) => item.id === parsed.paper)?.id ?? base.paper;
+    const font = FONT_OPTIONS.find((item) => item.id === parsed.font)?.id ?? base.font;
+    const wax = isWaxId(parsed.wax) ? parsed.wax : "rose";
+    const stickers: Sticker[] = Array.isArray(parsed.stickers)
+      ? parsed.stickers.slice(0, MAX_STICKERS).filter((item): item is Sticker => (
+        Boolean(item)
+        && typeof item.id === "string"
+        && STICKERS.some((def) => def.id === item.type)
+        && typeof item.x === "number"
+        && typeof item.y === "number"
+        && typeof item.scale === "number"
+      )).map((item) => ({
+        ...item,
+        rotation: typeof item.rotation === "number" ? Math.round(Math.min(35, Math.max(-35, item.rotation))) : 0,
+      }))
+      : [];
+    const draft: CardDraft = {
+      template: parsed.template,
+      paper,
+      font,
+      wax,
+      recipient: typeof parsed.recipient === "string" ? parsed.recipient.slice(0, MAX_NAME_LENGTH) : "",
+      message: typeof parsed.message === "string" ? parsed.message.slice(0, MAX_MESSAGE_LENGTH) : "",
+      sender: typeof parsed.sender === "string" ? parsed.sender.slice(0, MAX_NAME_LENGTH) : "",
+      birthday: typeof parsed.birthday === "string" ? parsed.birthday.slice(0, 10) : "",
+      motto: typeof parsed.motto === "string" ? parsed.motto.slice(0, MAX_MOTTO_LENGTH) : "",
+      stickers,
+      music: parsed.music && parsed.music.kind === "none" ? { kind: "none" } : { kind: "music-box" },
+    };
+    const hasContent = Boolean(draft.recipient.trim() || draft.message.trim() || draft.sender.trim() || draft.birthday || draft.motto?.trim() || draft.stickers.length);
+    return hasContent ? draft : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveEditorDraft(draft: CardDraft) {
+  try {
+    const hasContent = Boolean(draft.recipient.trim() || draft.message.trim() || draft.sender.trim() || draft.birthday || draft.motto?.trim() || draft.stickers.length);
+    if (!hasContent) {
+      localStorage.removeItem(EDITOR_DRAFT_KEY);
+      return;
+    }
+    localStorage.setItem(EDITOR_DRAFT_KEY, JSON.stringify({
+      ...draft,
+      music: draft.music.kind === "none" ? { kind: "none" } : { kind: "music-box" },
+    }));
+  } catch {
+    // Ignore storage quota errors.
+  }
+}
+
+export function clearEditorDraft() {
+  try {
+    localStorage.removeItem(EDITOR_DRAFT_KEY);
+  } catch {
+    // Ignore storage errors.
+  }
 }

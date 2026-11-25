@@ -199,8 +199,17 @@ button:disabled { cursor: default; }
 .wishes summary::-webkit-details-marker { display: none; }
 .wishes summary svg:last-child { margin-left: auto; transition: transform .15s; }
 .wishes[open] summary svg:last-child { transform: rotate(90deg); }
-.wishes > button { display: block; width: 100%; margin-top: 6px; border-radius: 6px; padding: 6px; text-align: left; color: #62514a; font-size: 12px; line-height: 1.35; }
-.wishes > button:hover { background: #f4e8e5; }
+.wish-tabs { display: flex; flex-wrap: wrap; gap: 5px; margin: 9px 0 6px; }
+.wish-tabs button { padding: 4px 9px; border-radius: 999px; border: 1px solid #eadfda; background: #fffdfb; color: #74625b; font-size: 11px; line-height: 1.3; }
+.wish-tabs button[aria-selected=true] { background: #f4e6e4; border-color: #cca5a7; color: #6c303e; font-weight: 600; }
+.wishes .wish-item { display: block; width: 100%; margin-top: 5px; border-radius: 6px; padding: 6px 7px; text-align: left; color: #62514a; font-size: 12px; line-height: 1.4; }
+.wishes .wish-item:hover { background: #f4e8e5; }
+
+.wax-picker { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding: 6px 8px; border-radius: 999px; }
+.wax-option { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 4px 10px 4px 5px; border-radius: 999px; border: 1px solid transparent; color: #5b4842; font-size: 12px; transition: background .16s, border-color .16s; }
+.wax-option i { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; font-style: normal; font-size: 12px; box-shadow: inset 0 -2px 4px rgb(0 0 0 / 26%), 0 2px 5px rgb(52 34 28 / 18%); }
+.wax-option:hover { background: #f6eeeb; }
+.wax-option[aria-checked=true] { background: #f8eeec; border-color: #c89ca0; color: #642c39; font-weight: 600; }
 
 .seal-target { width: 74px; height: 74px; display: grid; place-items: center; position: absolute; left: var(--wax-x, 50%); top: var(--wax-y, 55%); transform: translate(-50%,-50%); z-index: 3; padding: 0; border-radius: 50%; color: #963f54; background: #fdf4e925; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .seal-target svg:first-child { position: absolute; inset: 0; transform: rotate(-90deg); pointer-events: none; }
@@ -329,6 +338,9 @@ button:disabled { cursor: default; }
   .dock-divider { margin: 0 1px; height: 28px; }
   .dock-open, .dock-create { min-height: 42px; padding-inline: 10px; font-size: 12px; gap: 4px; }
   .dock-open svg, .dock-create svg { width: 14px; }
+  .wax-picker { gap: 4px; padding: 5px 6px; border-radius: 16px; }
+  .wax-option { min-height: 36px; padding: 3px 8px 3px 4px; font-size: 11px; gap: 4px; }
+  .wax-option i { width: 22px; height: 22px; font-size: 11px; }
   .gallery-footer { min-height: 38px; font-size: 10px; }
   .editor-header { width: calc(100% - 24px); gap: 6px; }
   .editor-header .brand-copy > span { display: none; }

@@ -4,7 +4,7 @@ import {
   linerArt, loadCoverArt, loadCoverBase, loadCoverPreview, loadInsideArt, loadInsidePreview, paperMaps,
   placeholderCoverArt, STICKER_BASE_SIZE, stickerArt,
 } from "./art";
-import { TEMPLATES, type CardDraft, type PaperId, type TemplateSlug } from "./cards";
+import { TEMPLATES, WAX_OPTIONS, type CardDraft, type PaperId, type TemplateSlug, type WaxId } from "./cards";
 import { createCoverLivingFX, createFoilSheen } from "./scene-fx";
 
 export const CARD_WIDTH = 3.12;
@@ -246,21 +246,24 @@ export function buildBook(
       }
       const x = (sticker.x - .5) * CARD_WIDTH;
       const y = (.5 - sticker.y) * CARD_HEIGHT;
+      const rotationZ = -((sticker.rotation ?? 0) * Math.PI) / 180;
       entry.mesh.position.set(x, y, CARD_DEPTH / 2 + .009 + index * .0005);
       entry.mesh.scale.setScalar(sticker.scale);
+      entry.mesh.rotation.z = rotationZ;
       entry.mesh.renderOrder = 4 + index * .01;
       if (sticker.id === selected) {
         selection.visible = true;
         selection.position.x = x;
         selection.position.y = y;
         selection.scale.setScalar(geometrySize * sticker.scale * 1.15);
+        selection.rotation.z = rotationZ;
       }
     });
   }
 
   let paper: PaperId;
   let latestDraft: CardDraft = themedDraft;
-  let leftKey = JSON.stringify([themedDraft.paper, themedDraft.birthday]);
+  let leftKey = JSON.stringify([themedDraft.paper, themedDraft.birthday, themedDraft.motto ?? ""]);
   let rightKey = JSON.stringify([themedDraft.paper, themedDraft.recipient, themedDraft.message, themedDraft.sender, themedDraft.font]);
   let stickersKey = "";
 
@@ -302,7 +305,7 @@ export function buildBook(
       exterior.color.set(paper === "kraft" ? "#f3dfc6" : "#ffffff");
       backing.color.set(template.color).multiply(new THREE.Color(paper === "kraft" ? "#ecd6b6" : "#ffffff"));
     }
-    const nextLeftKey = JSON.stringify([latestDraft.paper, latestDraft.birthday]);
+    const nextLeftKey = JSON.stringify([latestDraft.paper, latestDraft.birthday, latestDraft.motto ?? ""]);
     if (nextLeftKey !== leftKey) {
       leftKey = nextLeftKey;
       replaceMap(leftMaterial, insideArt(latestDraft, "left", false, false));
@@ -412,6 +415,40 @@ function waxDiskHalf(side: 1 | -1) {
   return envelopeShape(outline);
 }
 
+function waxMotifShape(kind: WaxId, side: 1 | -1) {
+  if (kind === "cream") {
+    const s = new THREE.Shape();
+    s.moveTo(0, .062);
+    s.bezierCurveTo(side * .058, .165, side * .178, .125, side * .162, .018);
+    s.bezierCurveTo(side * .148, -.068, side * .062, -.126, 0, -.166);
+    s.closePath();
+    return s;
+  }
+  if (kind === "sage") {
+    const s = new THREE.Shape();
+    s.moveTo(0, .172);
+    s.bezierCurveTo(side * .11, .115, side * .142, -.025, side * .045, -.132);
+    s.lineTo(0, -.165);
+    s.closePath();
+    return s;
+  }
+  if (kind === "rose") {
+    const pts: [number, number][] = [[0, .155]];
+    for (let i = 1; i <= 14; i++) {
+      const t = i / 14;
+      const a = Math.PI / 2 - side * Math.PI * t;
+      const r = .124 + .032 * Math.sin(t * Math.PI * 5);
+      pts.push([Math.cos(a) * r, Math.sin(a) * r]);
+    }
+    pts.push([0, -.155]);
+    return envelopeShape(pts);
+  }
+  // Classic 4-point celestial star ("gold")
+  return envelopeShape([
+    [0, .171], [side * .047, .044], [side * .163, 0], [side * .047, -.044], [0, -.171],
+  ]);
+}
+
 function waxMark(side: 1 | -1, material: THREE.Material) {
   const ring = new THREE.Group();
   for (const radius of [.281, .237]) {
@@ -420,17 +457,22 @@ function waxMark(side: 1 | -1, material: THREE.Material) {
     mesh.rotation.z = side === 1 ? -Math.PI / 2 : Math.PI / 2;
     ring.add(mesh);
   }
-  const halfStar = envelopeShape([
-    [0, .171], [side * .047, .044], [side * .163, 0], [side * .047, -.044], [0, -.171],
-  ]);
-  const geometry = new THREE.ExtrudeGeometry(halfStar, { depth: .008, bevelEnabled: true, bevelSize: .007, bevelThickness: .003, bevelSegments: 2 });
-  ring.add(new THREE.Mesh(geometry, material));
+  const motifs = new Map<WaxId, THREE.Mesh>();
+  for (const option of WAX_OPTIONS) {
+    const geometry = new THREE.ExtrudeGeometry(waxMotifShape(option.id, side), {
+      depth: .008, bevelEnabled: true, bevelSize: .007, bevelThickness: .003, bevelSegments: 2,
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.visible = option.id === "rose";
+    ring.add(mesh);
+    motifs.set(option.id, mesh);
+  }
   const dot = new THREE.Mesh(new THREE.SphereGeometry(.018, 9, 6), material);
   dot.position.set(side * .11, .12 * side, 0);
   dot.scale.z = .4;
   ring.add(dot);
   ring.position.z = .093;
-  return ring;
+  return { ring, motifs };
 }
 
 function flapGeometry(width: number, height: number) {
@@ -518,18 +560,37 @@ export function buildEnvelope(paper: ScenePaperMaps) {
   const crackedWax = waxMaterial.clone();
   const crackedStamp = stampMaterial.clone();
   crackedWax.transparent = crackedStamp.transparent = true;
+  const motifMaps: Map<WaxId, THREE.Mesh>[] = [];
   const fragments = ([-1, 1] as const).map((side) => {
     const fragment = new THREE.Group();
     const shape = new THREE.ExtrudeGeometry(waxDiskHalf(side), {
       depth: .063, bevelSegments: 3, bevelSize: .032, bevelThickness: .023, steps: 1,
     });
-    fragment.add(new THREE.Mesh(shape, crackedWax), waxMark(side, crackedStamp));
+    const mark = waxMark(side, crackedStamp);
+    motifMaps.push(mark.motifs);
+    fragment.add(new THREE.Mesh(shape, crackedWax), mark.ring);
     waxSpot.add(fragment);
     return fragment;
   });
   const molten = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), waxMaterial);
   waxSpot.add(molten);
   root.add(flap);
+
+  let currentWax: WaxId = "rose";
+  function setWax(waxId: WaxId) {
+    if (currentWax === waxId) return;
+    currentWax = waxId;
+    const preset = WAX_OPTIONS.find((item) => item.id === waxId) ?? WAX_OPTIONS[0];
+    waxMaterial.color.set(preset.color);
+    crackedWax.color.set(preset.color);
+    stampMaterial.color.set(preset.stamp);
+    stampMaterial.emissive.set(preset.emissive);
+    crackedStamp.color.set(preset.stamp);
+    crackedStamp.emissive.set(preset.emissive);
+    for (const map of motifMaps) {
+      for (const [id, mesh] of map) mesh.visible = id === preset.id;
+    }
+  }
 
   let lastBend = Number.NEGATIVE_INFINITY;
 
@@ -565,7 +626,7 @@ export function buildEnvelope(paper: ScenePaperMaps) {
   }
 
   update(0, 0, 0, 0);
-  return { root, waxSpot, update };
+  return { root, waxSpot, setWax, update };
 }
 
 export function disposeScene(root: THREE.Object3D, paper: ScenePaperMaps) {

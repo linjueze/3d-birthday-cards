@@ -109,6 +109,68 @@ export function prepareSealSound() {
   } catch { return null; }
 }
 
+export function playWaxCrackSound() {
+  if (typeof window === "undefined" || !window.AudioContext) return;
+  try {
+    const context = new AudioContext();
+    void context.resume().then(() => {
+      const now = context.currentTime + .01;
+      const len = Math.floor(context.sampleRate * .07);
+      const buf = context.createBuffer(1, len, context.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (len * .22));
+      }
+      const noise = context.createBufferSource();
+      noise.buffer = buf;
+      const filter = context.createBiquadFilter();
+      filter.type = "bandpass";
+      filter.frequency.value = 1850;
+      filter.Q.value = 1.8;
+      const gain = context.createGain();
+      gain.gain.setValueAtTime(.18, now);
+      gain.gain.exponentialRampToValueAtTime(.0001, now + .075);
+      noise.connect(filter).connect(gain).connect(context.destination);
+      noise.start(now);
+      bell(context, 72, now + .04, .035);
+      bell(context, 79, now + .11, .025);
+      setTimeout(() => { if (context.state !== "closed") void context.close().catch(() => {}); }, 1400);
+    }).catch(() => { if (context.state !== "closed") void context.close().catch(() => {}); });
+  } catch { /* Audio unavailable */ }
+}
+
+export function playPaperOpenSound() {
+  if (typeof window === "undefined" || !window.AudioContext) return;
+  try {
+    const context = new AudioContext();
+    void context.resume().then(() => {
+      const now = context.currentTime + .01;
+      const dur = .24;
+      const len = Math.floor(context.sampleRate * dur);
+      const buf = context.createBuffer(1, len, context.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) {
+        const t = i / len;
+        const env = Math.sin(Math.PI * t) * Math.pow(1 - t, .65);
+        data[i] = (Math.random() * 2 - 1) * env;
+      }
+      const noise = context.createBufferSource();
+      noise.buffer = buf;
+      const filter = context.createBiquadFilter();
+      filter.type = "bandpass";
+      filter.frequency.setValueAtTime(920, now);
+      filter.frequency.exponentialRampToValueAtTime(2100, now + dur * .65);
+      filter.Q.value = .95;
+      const gain = context.createGain();
+      gain.gain.setValueAtTime(.065, now);
+      gain.gain.exponentialRampToValueAtTime(.0001, now + dur);
+      noise.connect(filter).connect(gain).connect(context.destination);
+      noise.start(now);
+      setTimeout(() => { if (context.state !== "closed") void context.close().catch(() => {}); }, 600);
+    }).catch(() => { if (context.state !== "closed") void context.close().catch(() => {}); });
+  } catch { /* Audio unavailable */ }
+}
+
 export function useMusic(music: Music) {
   const [playing, setPlaying] = useState(false);
   const player = useRef<{ context?: AudioContext; audio?: HTMLAudioElement; timer?: ReturnType<typeof setTimeout> } | null>(null);
@@ -124,9 +186,8 @@ export function useMusic(music: Music) {
   useEffect(() => () => cleanup(), [cleanup]);
   useEffect(() => { stop(); }, [music, stop]);
 
-  const toggle = useCallback(() => {
-    if (player.current) { stop(); return; }
-    if (music.kind === "none") return;
+  const start = useCallback(() => {
+    if (player.current || music.kind === "none") return;
     if (music.kind === "upload") {
       const audio = new Audio(music.data);
       audio.volume = .6;
@@ -160,7 +221,12 @@ export function useMusic(music: Music) {
       playPhrase();
     }).catch(() => { if (player.current?.context === context) stop(); });
   }, [music, stop]);
-  return { playing, toggle, stop };
+
+  const toggle = useCallback(() => {
+    if (player.current) { stop(); return; }
+    start();
+  }, [start, stop]);
+  return { playing, start, toggle, stop };
 }
 
 export function Stars({ burst = false, className = "" }: { burst?: boolean; className?: string }) {

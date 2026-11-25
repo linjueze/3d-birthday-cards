@@ -4,21 +4,24 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   ArrowLeft, ArrowRight, BookOpen, Check, ChevronRight, CircleHelp, Copy, ExternalLink, Eye,
-  EyeOff, Layers2, Mail, Music2, PackageCheck, Pause, Play, Redo2, Send, Sparkles, Stamp,
-  Sticker as StickerIcon, Trash2, Type, Undo2, X,
+  EyeOff, Layers2, Mail, MessageSquareShare, Music2, PackageCheck, Pause, Play, Redo2, RotateCcw,
+  Send, Sparkles, Stamp, Sticker as StickerIcon, Trash2, Type, Undo2, X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { flushSync } from "react-dom";
 import CardScene from "@/components/CardScene";
-import { Brand, copyText, prepareSealSound, Stars, useMusic, useToast } from "@/components/Shared";
+import { Brand, copyText, playPaperOpenSound, prepareSealSound, Stars, useMusic, useToast } from "@/components/Shared";
 import { CardThumb, StickerThumb } from "@/components/Thumbnails";
 import { loadCoverArt, STICKER_BASE_SIZE } from "@/lib/art";
 import {
-  defaultDraft, FONT_OPTIONS, isTemplateSlug, PAPER_OPTIONS, STICKERS, TEMPLATES, WISHES,
-  type CardDraft, type Music, type StickerId, type TemplateSlug,
+  defaultDraft, FONT_OPTIONS, isTemplateSlug, PAPER_OPTIONS, STICKERS, TEMPLATES, WAX_OPTIONS,
+  WISH_GROUPS, type CardDraft, type Music, type StickerId, type TemplateSlug,
 } from "@/lib/cards";
 import { MAX_MESSAGE_LENGTH, MAX_NAME_LENGTH, MAX_STICKERS } from "@/lib/letters";
-import { encodeSharedLetter, saveLocalOutboxItem, withBasePath } from "@/lib/share-codec";
+import {
+  clearEditorDraft, encodeSharedLetter, loadEditorDraft, MAX_MOTTO_LENGTH, saveEditorDraft,
+  saveLocalOutboxItem, withBasePath,
+} from "@/lib/share-codec";
 
 const tools = [
   { id: "cover", label: "封面", icon: Layers2 },
@@ -85,6 +88,9 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
   const [sent, setSent] = useState<SentShare | null>(null);
   const [baseUrl, setBaseUrl] = useState("");
   const [busy, setBusy] = useState(false);
+  const [wishTab, setWishTab] = useState(0);
+  const [restoredDraft, setRestoredDraft] = useState(false);
+  const hydratedDraft = useRef(false);
   const { notify, toast } = useToast();
   const { playing, toggle: toggleMusic, stop: stopMusic } = useMusic(draft.music);
   const recipientInput = useRef<HTMLInputElement>(null);
@@ -120,8 +126,25 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
   useEffect(() => {
     setMinimum(localDateValue());
     setBaseUrl(window.location.origin);
-    for (const item of TEMPLATES) void loadCoverArt(item.slug);
+    for (const item of TEMPLATES) void loadCoverArt(item.slug, item.slug === draft.template ? "high" : "low");
+    const saved = loadEditorDraft();
+    if (saved) {
+      const merged = resolvedTemplate && saved.template !== resolvedTemplate
+        ? { ...saved, template: resolvedTemplate }
+        : saved;
+      setHistory({ past: [], draft: merged, future: [] });
+      setRestoredDraft(true);
+      notify("已自动恢复上次未完成的草稿");
+    }
+    hydratedDraft.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!hydratedDraft.current || sent) return;
+    const timer = window.setTimeout(() => saveEditorDraft(draft), 280);
+    return () => window.clearTimeout(timer);
+  }, [draft, sent]);
 
   useEffect(() => {
     if (pack !== "none") return;
@@ -157,13 +180,15 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
     const spawnSlots: readonly [number, number][] = [
       [.23, .77], [.77, .28], [.23, .58], [.78, .56], [.38, .78], [.62, .28], [.24, .36], [.76, .42],
     ];
+    const gentleTilts = [-5, 4, -3, 6, -4, 3, -6, 5];
     edit((current) => {
       const index = current.stickers.length;
       const [baseX, baseY] = spawnSlots[index % spawnSlots.length];
       const ring = Math.floor(index / spawnSlots.length);
       const x = Math.min(.86, Math.max(.14, baseX + (ring % 2 ? .04 : -.03) * Math.min(ring, 2)));
       const y = Math.min(.86, Math.max(.14, baseY - ring * .03));
-      return { ...current, stickers: [...current.stickers, { id, type, x, y, scale: 1 }] };
+      const rotation = gentleTilts[index % gentleTilts.length];
+      return { ...current, stickers: [...current.stickers, { id, type, x, y, scale: 1, rotation }] };
     });
     setSelectedSticker(id);
     setOpen(true);
@@ -183,16 +208,17 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
     if (snapshot) setHistory((current) => ({ ...current, past: cap(current.past, snapshot), future: [] }));
   }
 
-  function clampSticker(sticker: CardDraft["stickers"][number], change: { scale?: number; x?: number; y?: number }) {
+  function clampSticker(sticker: CardDraft["stickers"][number], change: { scale?: number; x?: number; y?: number; rotation?: number }) {
     const scale = change.scale ?? sticker.scale;
     const padX = Math.max(.12, STICKER_BASE_SIZE * scale * .58 + .02);
     const padY = Math.max(.10, STICKER_BASE_SIZE * scale * .44 + .02);
     const x = Math.min(1 - padX, Math.max(padX, change.x ?? sticker.x));
     const y = Math.min(1 - padY, Math.max(padY, change.y ?? sticker.y));
-    return { ...sticker, scale, x, y };
+    const rotation = Math.round(Math.min(25, Math.max(-25, change.rotation ?? sticker.rotation ?? 0)));
+    return { ...sticker, scale, x, y, rotation };
   }
 
-  function adjustSticker(change: { scale?: number; x?: number; y?: number }) {
+  function adjustSticker(change: { scale?: number; x?: number; y?: number; rotation?: number }) {
     if (!activeSticker) return;
     edit((current) => ({ ...current, stickers: current.stickers.map((sticker) => sticker.id === activeSticker.id ? clampSticker(sticker, change) : sticker) }));
   }
@@ -294,6 +320,8 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
         deliverAt,
         sharePath: recipientPath,
       });
+      clearEditorDraft();
+      setRestoredDraft(false);
       setSent({ id, recipientPath, outboxPath });
     } catch (error) {
       notify(error instanceof Error ? error.message : "暂时无法生成链接，请重试。");
@@ -302,6 +330,8 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
 
   function newLetter(duplicate: boolean) {
     const fresh = duplicate ? { ...draft, recipient: "", birthday: "", stickers: draft.stickers.map((sticker) => ({ ...sticker })) } : defaultDraft();
+    clearEditorDraft();
+    setRestoredDraft(false);
     setHistory({ past: [], draft: fresh, future: [] });
     setDelivery("now");
     setScheduled("");
@@ -311,9 +341,31 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
     notify(duplicate ? "已保留贺卡内容，写上下一位收件人的名字吧。" : "新的生日信已准备好。");
   }
 
+  function resetDraft() {
+    clearEditorDraft();
+    setRestoredDraft(false);
+    setHistory({ past: [], draft: defaultDraft(draft.template), future: [] });
+    setSelectedSticker(null);
+    notify("已清空草稿，可以重新开始写了。");
+  }
+
   async function copy(path: string) {
     try { await copyText(baseUrl + withBasePath(path)); notify("链接已复制"); }
     catch { notify("可以选中链接并手动复制。"); }
+  }
+
+  async function copyWeChatInvite(path: string) {
+    const link = baseUrl + withBasePath(path);
+    const name = draft.recipient.trim();
+    const message = name
+      ? `${name}，给你寄了一封 3D 立体生日信，点开火漆看看吧 🎂\n${link}`
+      : `给你寄了一封 3D 立体生日信，点开火漆看看吧 🎂\n${link}`;
+    try {
+      await copyText(message);
+      notify("微信发送文案已复制，直接粘贴给 TA 吧");
+    } catch {
+      notify("暂时无法自动复制，可以手动复制链接。");
+    }
   }
 
   return <main className="editor-shell" data-pack={pack} data-panel={nextPanel ? "open" : "closed"} data-preview={preview ? "true" : "false"}>
@@ -338,6 +390,7 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
           {pack === "none" && <div className="editor-stage-actions glass">
             <button type="button" className="icon-btn" aria-label="撤销" title="撤销" disabled={!past.length} onClick={undo}><Undo2 size={18} /></button>
             <button type="button" className="icon-btn" aria-label="重做" title="重做" disabled={!future.length} onClick={redo}><Redo2 size={18} /></button>
+            {restoredDraft && <button type="button" className="icon-btn" aria-label="清空草稿" title="清空草稿" onClick={resetDraft}><RotateCcw size={16} /></button>}
             <span />
             <button type="button" className="pill editor-preview" aria-pressed={preview} onClick={() => { setPreview(!preview); setSelectedSticker(null); }}>{preview ? <EyeOff size={16} /> : <Eye size={16} />}<span>{preview ? "退出预览" : "预览"}</span></button>
           </div>}
@@ -346,7 +399,7 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
         <div className="editor-artwork">
           <div className="editor-artwork-glow" aria-hidden="true" />
           <CardScene draft={draft} mode={pack === "none" ? "editor" : "pack"} open={open} envelope={pack} sealProgress={progress} onReady={sceneReady}
-            onToggle={pack === "none" ? () => setOpen((value) => !value) : undefined}
+            onToggle={pack === "none" ? () => { playPaperOpenSound(); setOpen((value) => !value); } : undefined}
             onStickerSelect={!preview && pack === "none" ? setSelectedSticker : undefined}
             selectedSticker={!preview ? selectedSticker : null} onStickerMove={!preview ? moveSticker : undefined} onStickerCommit={!preview ? finishSticker : undefined} />
           {pack === "unsealed" && <button type="button" className="seal-target" aria-label="按住火漆处 1 秒，盖上印章" onPointerDown={holdPointer} onPointerUp={stopHold} onPointerCancel={stopHold} onLostPointerCapture={stopHold}
@@ -360,13 +413,30 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
         </div>
         <div className="stage-caption">
           {pack === "none" ? <div className="stage-view glass">
-            <button type="button" aria-pressed={!open} onClick={() => setOpen(false)}>封面 <span>1/2</span></button>
-            <button type="button" aria-pressed={open} onClick={() => setOpen(true)}>内页 <span>2/2</span></button>
+            <button type="button" aria-pressed={!open} onClick={() => { if (open) playPaperOpenSound(); setOpen(false); }}>封面 <span>1/2</span></button>
+            <button type="button" aria-pressed={open} onClick={() => { if (!open) playPaperOpenSound(); setOpen(true); }}>内页 <span>2/2</span></button>
             <i />
-            <button type="button" className="stage-fold" onClick={() => setOpen((value) => !value)}><BookOpen size={15} />{open ? "合上贺卡" : "翻开贺卡"}</button>
+            <button type="button" className="stage-fold" onClick={() => { playPaperOpenSound(); setOpen((value) => !value); }}><BookOpen size={15} />{open ? "合上贺卡" : "翻开贺卡"}</button>
           </div> : <div className="pack-footer">
+            {pack === "unsealed" && (
+              <div className="wax-picker glass" role="radiogroup" aria-label="选择火漆印章">
+                {WAX_OPTIONS.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={(draft.wax ?? "rose") === option.id}
+                    className="wax-option"
+                    onClick={() => edit({ wax: option.id })}
+                  >
+                    <i style={{ backgroundColor: option.color, color: option.stamp }}>{option.glyph}</i>
+                    <span>{option.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="pack-note" aria-live="polite">
-              {pack === "packing" ? "正在将贺卡装入信封…" : pack === "unsealed" ? "按住火漆处 1 秒，盖上印章" : sent ? "把收件人链接发给 TA，就能送达这份心意。" : "火漆已盖好，可以寄出了。"}
+              {pack === "packing" ? "正在将贺卡装入信封…" : pack === "unsealed" ? "挑一款喜欢的火漆，按住印章处 1 秒封缄" : sent ? "把收件人链接发给 TA，就能送达这份心意。" : "火漆已盖好，可以寄出了。"}
             </div>
             {!sent && <button type="button" className="pill pill-outline edit-again" disabled={busy} onClick={backToWriting}><ArrowLeft size={15} />返回做卡</button>}
           </div>}
@@ -399,6 +469,7 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
             </label>
             {activeSticker && <>
               <label className="range-field">大小<input type="range" min=".4" max="1.6" step=".05" value={activeSticker.scale} onChange={(event) => adjustSticker({ scale: Number(event.target.value) })} /></label>
+              <label className="range-field">倾斜<input type="range" min="-25" max="25" step="1" value={activeSticker.rotation ?? 0} onChange={(event) => adjustSticker({ rotation: Number(event.target.value) })} /></label>
               <label className="range-field">横向<input type="range" min=".12" max=".88" step=".01" value={activeSticker.x} onChange={(event) => adjustSticker({ x: Number(event.target.value) })} /></label>
               <label className="range-field">纵向<input type="range" min=".12" max=".88" step=".01" value={activeSticker.y} onChange={(event) => adjustSticker({ y: Number(event.target.value) })} /></label>
               <button type="button" className="pill pill-outline sticker-delete" onClick={deleteSticker}><Trash2 size={15} /> 删除贴纸</button>
@@ -411,8 +482,14 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
           <label className="field"><span>落款</span><input value={draft.sender} onChange={(event) => { edit({ sender: event.target.value }); setOpen(true); }} maxLength={MAX_NAME_LENGTH} placeholder="你的名字" /></label>
           <div className="field"><span>书写字体</span><div className="font-options">{FONT_OPTIONS.map((font) => <button type="button" key={font.id} aria-pressed={draft.font === font.id} onClick={() => edit({ font: font.id })} style={{ fontFamily: `"${font.family}", serif` }}>{font.label}</button>)}</div></div>
           <details className="wishes"><summary><Sparkles size={15} /> 选一句生日祝福 <ChevronRight size={15} /></summary>
-            {WISHES.map((wish) => <button type="button" key={wish} onClick={() => { edit({ message: wish }); setOpen(true); }}>{wish}</button>)}
+            <div className="wish-tabs" role="tablist" aria-label="祝福分类">
+              {WISH_GROUPS.map((group, idx) => (
+                <button key={group.label} type="button" role="tab" aria-selected={wishTab === idx} onClick={() => setWishTab(idx)}>{group.label}</button>
+              ))}
+            </div>
+            {WISH_GROUPS[wishTab].items.map((wish) => <button type="button" key={wish} className="wish-item" onClick={() => { edit({ message: wish }); setOpen(true); }}>{wish}</button>)}
           </details>
+          <label className="field"><span>左页扉页短句 <small>选填，留空显示默认英文寄语</small></span><input value={draft.motto ?? ""} onChange={(event) => { edit({ motto: event.target.value }); setOpen(true); }} maxLength={MAX_MOTTO_LENGTH} placeholder="如：愿你永远自由、闪闪发光" /></label>
           <label className="field"><span>生日日期印章 <small>选填</small></span><input type="date" value={draft.birthday} onChange={(event) => { edit({ birthday: event.target.value }); setOpen(true); }} /></label>
         </div>}
         {drawer === "music" && <div className="option-list">
@@ -432,7 +509,8 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
             <div><input id="recipient-link" readOnly value={baseUrl + withBasePath(sent.recipientPath)} onFocus={(event) => event.currentTarget.select()} />
               <button type="button" className="icon-btn" aria-label="复制收件人链接" title="复制收件人链接" onClick={() => void copy(sent.recipientPath)}><Copy size={16} /></button>
               <Link className="icon-btn" href={sent.recipientPath} target="_blank" rel="noreferrer" aria-label="打开预览" title="在新标签预览"><ExternalLink size={16} /></Link></div>
-            <button type="button" className="pill pill-primary share-copy-cta" onClick={() => void copy(sent.recipientPath)}><Copy size={16} />一键复制收件链接</button>
+            <button type="button" className="pill pill-primary share-copy-cta" onClick={() => void copyWeChatInvite(sent.recipientPath)}><MessageSquareShare size={16} />复制微信发送文案</button>
+            <button type="button" className="pill pill-outline share-copy-cta" onClick={() => void copy(sent.recipientPath)}><Copy size={15} />仅复制收件链接</button>
           </div>
           <div className="share-field">
             <label htmlFor="outbox-link">本机寄件箱</label>

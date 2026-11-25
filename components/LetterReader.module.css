@@ -242,6 +242,59 @@
 .transcriptBody { white-space: pre-wrap; }
 .transcript time { color: #776662; font-size: .78rem; }
 
+.hintDot { opacity: .45; }
+.replyLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #7c3849;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.replyLink:hover { color: #5c2231; }
+
+.keepsakeDialog {
+  width: min(740px, calc(100% - 24px));
+  padding: clamp(18px, 4vw, 30px);
+}
+.keepsakeHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.keepsakeHead h2 {
+  margin: 0;
+  font-size: clamp(1.15rem, 3.6vw, 1.45rem);
+}
+.keepsakeHead button {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  justify-content: center;
+}
+.keepsakeImg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  border: 1px solid #e6dacf;
+  box-shadow: 0 12px 32px rgb(52 34 28 / 12%);
+}
+.keepsakeTip {
+  margin: 12px 0 0 !important;
+  font-size: .8rem;
+  color: #776662;
+  text-align: center;
+}
+.keepsakeActions {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .transcript[open] { animation: transcript-enter .22s ease-out both; }
   @keyframes transcript-enter {

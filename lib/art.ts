@@ -499,12 +499,16 @@ function insideLeft(ctx: CanvasRenderingContext2D, draft: CardDraft, includeEmbl
   spacedText(ctx, "WITH LOVE", 384, 134, 7);
   ctx.restore();
 
-  // Theme-specific italic calligraphy keepsake motto beneath the arch
+  // Theme-specific or custom keepsake motto beneath the arch
+  const mottoText = (draft.motto ?? "").trim() || insideMottos[draft.template];
+  const hasCjkMotto = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(mottoText);
   ctx.save();
   ctx.fillStyle = draft.paper === "kraft" ? "#63412c" : "#8f6f46";
   ctx.textAlign = "center";
-  ctx.font = 'italic 33px "Cormorant Garamond", Georgia, serif';
-  ctx.fillText(insideMottos[draft.template], 384, 782, 560);
+  ctx.font = hasCjkMotto
+    ? '28px "Noto Serif SC", "Songti SC", Georgia, serif'
+    : 'italic 33px "Cormorant Garamond", Georgia, serif';
+  ctx.fillText(mottoText, 384, 782, 560);
   ctx.restore();
 
   // Vintage wavy birthday postal stamp (shown dynamically when a birthday date is entered)
@@ -598,7 +602,14 @@ function insideRight(ctx: CanvasRenderingContext2D, draft: CardDraft, includeSti
   if (includeStickers) {
     for (const sticker of draft.stickers) {
       const size = ART_WIDTH * STICKER_BASE_SIZE * sticker.scale;
-      ctx.drawImage(stickerArt(sticker.type), sticker.x * ART_WIDTH - size / 2, sticker.y * ART_HEIGHT - size / 2, size, size);
+      const cx = sticker.x * ART_WIDTH;
+      const cy = sticker.y * ART_HEIGHT;
+      const rad = ((sticker.rotation ?? 0) * Math.PI) / 180;
+      ctx.save();
+      ctx.translate(cx, cy);
+      if (rad) ctx.rotate(rad);
+      ctx.drawImage(stickerArt(sticker.type), -size / 2, -size / 2, size, size);
+      ctx.restore();
     }
   }
 }
@@ -608,6 +619,62 @@ export function insideArt(draft: CardDraft, side: "left" | "right", includeStick
   ctx.drawImage(interiorPaper(draft.paper, side), 0, 0);
   if (side === "left") insideLeft(ctx, draft, includeEmblem);
   else insideRight(ctx, draft, includeStickers);
+  return canvas;
+}
+
+/**
+ * Renders a high-resolution (1720x1200) keepsake postcard image combining the unfolded
+ * Option B left frontispiece and right message page (with stickers) onto a warm linen backdrop.
+ */
+export function renderKeepsakeCard(draft: CardDraft): HTMLCanvasElement {
+  const width = 1720;
+  const height = 1200;
+  const { canvas, ctx } = surface(width, height);
+  const bg = ctx.createLinearGradient(0, 0, width, height);
+  bg.addColorStop(0, "#f8f3ec");
+  bg.addColorStop(.5, "#f4ece2");
+  bg.addColorStop(1, "#eee4d8");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, width, height);
+
+  const leftPage = insideArt(draft, "left", false, true);
+  const rightPage = insideArt(draft, "right", true, true);
+  const pageW = 768;
+  const pageH = 1024;
+  const spreadW = pageW * 2;
+  const startX = Math.round((width - spreadW) / 2);
+  const startY = 74;
+
+  // Soft studio drop shadow beneath the open card spread
+  ctx.save();
+  ctx.shadowColor = "rgba(62, 40, 28, 0.22)";
+  ctx.shadowBlur = 46;
+  ctx.shadowOffsetY = 20;
+  ctx.fillStyle = "#efe3d0";
+  ctx.fillRect(startX, startY, spreadW, pageH);
+  ctx.restore();
+
+  ctx.drawImage(leftPage, startX, startY, pageW, pageH);
+  ctx.drawImage(rightPage, startX + pageW, startY, pageW, pageH);
+
+  // Realistic center spine fold shading
+  const crease = ctx.createLinearGradient(startX + pageW - 26, 0, startX + pageW + 26, 0);
+  crease.addColorStop(0, "rgba(70, 48, 32, 0)");
+  crease.addColorStop(.46, "rgba(70, 48, 32, 0.14)");
+  crease.addColorStop(.5, "rgba(50, 32, 20, 0.22)");
+  crease.addColorStop(.54, "rgba(70, 48, 32, 0.11)");
+  crease.addColorStop(1, "rgba(70, 48, 32, 0)");
+  ctx.fillStyle = crease;
+  ctx.fillRect(startX + pageW - 26, startY, 52, pageH);
+
+  // Subtle stationery footer mark
+  ctx.save();
+  ctx.fillStyle = "rgba(122, 99, 86, 0.65)";
+  ctx.font = '20px "Cormorant Garamond", "Noto Serif SC", Georgia, serif';
+  ctx.textAlign = "center";
+  ctx.fillText("Birthday Cards · 生日信", width / 2, startY + pageH + 58);
+  ctx.restore();
+
   return canvas;
 }
 

@@ -38,11 +38,55 @@ export const STICKERS = [
   { id: "hat", label: "派对帽", symbol: "🥳" },
 ] as const;
 
-export const WISHES = [
-  "生日快乐，愿你新的一岁被温柔与惊喜环绕。",
-  "Happy Birthday! 愿所有心愿如期而至。",
-  "岁岁常欢愉，万事皆胜意。",
+export const WAX_OPTIONS = [
+  { id: "rose", label: "酒红玫瑰", color: "#9f354d", stamp: "#c67185", emissive: "#5e1629", glyph: "✿" },
+  { id: "gold", label: "鎏金星月", color: "#b68534", stamp: "#ecd08b", emissive: "#614111", glyph: "✦" },
+  { id: "sage", label: "松绿橄榄", color: "#3d6353", stamp: "#7ea892", emissive: "#1a3328", glyph: "❦" },
+  { id: "cream", label: "奶油爱心", color: "#c98582", stamp: "#f3cbc6", emissive: "#6b3838", glyph: "♥" },
 ] as const;
+
+export type WaxId = typeof WAX_OPTIONS[number]["id"];
+
+export function isWaxId(value: unknown): value is WaxId {
+  return WAX_OPTIONS.some(({ id }) => id === value);
+}
+
+export const WISH_GROUPS = [
+  {
+    label: "挚友闺蜜",
+    items: [
+      "生日快乐！愿你新的一岁被温柔与惊喜环绕，永远闪闪发光。",
+      "祝我最好的朋友生日快乐！新的一岁，愿你自由热烈，所遇皆良人。",
+      "又长大一岁啦，希望你永远保留这份可爱与赤诚，平安喜乐，万事顺遂。",
+    ],
+  },
+  {
+    label: "恋人爱人",
+    items: [
+      "生日快乐，我的心上人。往后的每一个生日，我都想陪你一起吹蜡烛。",
+      "谢谢你出现在我的世界里，愿这一岁所有的星光和偏爱都奔向你。",
+      "Happy Birthday! 愿所有心愿如期而至，而我永远在你身边。",
+    ],
+  },
+  {
+    label: "家人长辈",
+    items: [
+      "祝您生日快乐，身体健康，岁岁常欢愉，万事皆胜意。",
+      "愿时光慢一点，愿您天天开心顺心，平安健康常伴左右。",
+      "感谢一路的陪伴与照顾，祝新的一岁福寿安康，笑口常开。",
+    ],
+  },
+  {
+    label: "优雅通用",
+    items: [
+      "岁岁常欢愉，万事皆胜意。",
+      "Happy Birthday! 愿你眼中有光，心中有爱，步履所至皆是风景。",
+      "愿新的一岁，所有美好都如约而至，所行皆坦途。",
+    ],
+  },
+] as const;
+
+export const WISHES = WISH_GROUPS.flatMap((group) => group.items);
 
 export type PaperId = typeof PAPER_OPTIONS[number]["id"];
 export type FontId = typeof FONT_OPTIONS[number]["id"];
@@ -54,6 +98,7 @@ export interface Sticker {
   x: number;
   y: number;
   scale: number;
+  rotation?: number;
 }
 
 export type Music =
@@ -71,10 +116,24 @@ export interface CardDraft {
   stickers: Sticker[];
   birthday: string;
   music: Music;
+  wax?: WaxId;
+  motto?: string;
 }
 
 export function defaultDraft(template: TemplateSlug = TEMPLATES[0].slug): CardDraft {
-  return { template, paper: "watercolor", recipient: "", message: "", sender: "", font: "serif", stickers: [], birthday: "", music: { kind: "none" } };
+  return {
+    template,
+    paper: "watercolor",
+    recipient: "",
+    message: "",
+    sender: "",
+    font: "serif",
+    stickers: [],
+    birthday: "",
+    music: { kind: "music-box" },
+    wax: "rose",
+    motto: "",
+  };
 }
 
 export const MAX_AUDIO_BYTES = 15 * 1024 * 1024;

@@ -1,12 +1,13 @@
 "use client";
 
-import { AlignLeft, BookHeart, BookOpen, Clock3, LockKeyhole, MailOpen, Maximize2, Minimize2, Rotate3D, Volume2, VolumeX, X } from "lucide-react";
+import { AlignLeft, BookHeart, BookOpen, Clock3, Download, LockKeyhole, MailOpen, Maximize2, Minimize2, PenLine, Rotate3D, Volume2, VolumeX, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { loadInsideArt, renderKeepsakeCard } from "@/lib/art";
 import { defaultDraft, type CardDraft } from "@/lib/cards";
 import { decodeSharedLetter } from "@/lib/share-codec";
 import CardScene from "./CardScene";
-import { Brand, Stars, useMusic, useToast } from "./Shared";
+import { Brand, playPaperOpenSound, playWaxCrackSound, Stars, useMusic, useToast } from "./Shared";
 import styles from "./LetterReader.module.css";
 
 type Scene = "sealed" | "breaking" | "opened";
@@ -47,10 +48,13 @@ export default function LetterReader() {
   const [open, setOpen] = useState(false);
   const [focusMessage, setFocusMessage] = useState(false);
   const [burst, setBurst] = useState(false);
+  const [keepsakeUrl, setKeepsakeUrl] = useState("");
   const hasOpenedCard = useRef(false);
+  const userMuted = useRef(false);
   const transcript = useRef<HTMLDialogElement>(null);
-  const { playing, toggle } = useMusic(draft.music);
-  const { toast } = useToast();
+  const keepsakeDialog = useRef<HTMLDialogElement>(null);
+  const { playing, start: startMusic, toggle } = useMusic(draft.music);
+  const { notify, toast } = useToast();
 
   useEffect(() => {
     let active = true;
@@ -96,6 +100,7 @@ export default function LetterReader() {
 
   function breakSeal() {
     if (!loaded || loadError || locked || scene !== "sealed") return;
+    playWaxCrackSound();
     setScene("breaking");
   }
 
@@ -112,12 +117,42 @@ export default function LetterReader() {
   function toggleCard() {
     if (scene !== "opened") return;
     const next = !open;
+    playPaperOpenSound();
     setOpen(next);
     if (!next) setFocusMessage(false);
     if (next && !hasOpenedCard.current) {
       hasOpenedCard.current = true;
       setBurst(true);
+      if (draft.music.kind !== "none" && !userMuted.current) {
+        startMusic();
+      }
     }
+  }
+
+  function toggleMusic() {
+    userMuted.current = playing;
+    toggle();
+  }
+
+  async function openKeepsake() {
+    try {
+      await loadInsideArt(draft.template);
+      const canvas = renderKeepsakeCard(draft);
+      setKeepsakeUrl(canvas.toDataURL("image/png"));
+      keepsakeDialog.current?.showModal();
+    } catch {
+      notify("暂时无法生成纪念图，请稍后再试。");
+    }
+  }
+
+  function downloadKeepsake() {
+    if (!keepsakeUrl) return;
+    const safeName = (draft.recipient.trim() || "birthday").replace(/[\\/:*?"<>|]/g, "");
+    const link = document.createElement("a");
+    link.href = keepsakeUrl;
+    link.download = `birthday-card-${safeName}.png`;
+    link.click();
+    notify("已开始下载高清贺卡纪念图");
   }
 
   const recipient = draft.recipient;
@@ -199,7 +234,7 @@ export default function LetterReader() {
                     {open ? "合上贺卡" : "翻开贺卡"}
                   </button>
                   {draft.music.kind !== "none" && (
-                    <button type="button" className="pill pill-outline" aria-pressed={playing} onClick={toggle}>
+                    <button type="button" className="pill pill-outline" aria-pressed={playing} onClick={toggleMusic}>
                       {playing ? <Volume2 size={17} aria-hidden="true" /> : <VolumeX size={17} aria-hidden="true" />}
                       {playing ? "关闭音乐" : "播放音乐"}
                     </button>
@@ -211,28 +246,57 @@ export default function LetterReader() {
                     </button>
                   )}
                   {open && (
+                    <button type="button" className="pill pill-outline" onClick={() => { void openKeepsake(); }}>
+                      <Download size={16} aria-hidden="true" /> 保存纪念图
+                    </button>
+                  )}
+                  {open && (
                     <button type="button" className="pill pill-outline" onClick={() => transcript.current?.showModal()}>
                       <AlignLeft size={17} aria-hidden="true" /> 文字版
                     </button>
                   )}
                 </div>
-                <p className={styles.hint}><Rotate3D size={15} aria-hidden="true" /> 拖动旋转 · 放大后单指平移看细节</p>
+                <p className={styles.hint}>
+                  <Rotate3D size={15} aria-hidden="true" /> 拖动旋转 · 放大后单指平移看细节
+                  <span className={styles.hintDot} aria-hidden="true">·</span>
+                  <Link href="/" className={styles.replyLink}><PenLine size={13} aria-hidden="true" /> 我也想寄一封</Link>
+                </p>
               </div>
             )}
           </div>
 
           {open && scene === "opened" && (
-            <dialog ref={transcript} className={styles.transcript} aria-labelledby="transcript-title">
-              <form method="dialog" className={styles.transcriptClose}>
-                <button type="submit" className="pill pill-outline" aria-label="关闭文字版"><X size={19} aria-hidden="true" /></button>
-              </form>
-              <article>
-                <h2 id="transcript-title">Dear {draft.recipient}</h2>
-                <p className={styles.transcriptBody}>{draft.message}</p>
-                {draft.sender && <p>— {draft.sender}</p>}
-                {draft.birthday && <time dateTime={draft.birthday}>{draft.birthday}</time>}
-              </article>
-            </dialog>
+            <>
+              <dialog ref={transcript} className={styles.transcript} aria-labelledby="transcript-title">
+                <form method="dialog" className={styles.transcriptClose}>
+                  <button type="submit" className="pill pill-outline" aria-label="关闭文字版"><X size={19} aria-hidden="true" /></button>
+                </form>
+                <article>
+                  <h2 id="transcript-title">Dear {draft.recipient}</h2>
+                  <p className={styles.transcriptBody}>{draft.message}</p>
+                  {draft.sender && <p>— {draft.sender}</p>}
+                  {draft.birthday && <time dateTime={draft.birthday}>{draft.birthday}</time>}
+                </article>
+              </dialog>
+
+              <dialog ref={keepsakeDialog} className={`${styles.transcript} ${styles.keepsakeDialog}`} aria-labelledby="keepsake-title">
+                <div className={styles.keepsakeHead}>
+                  <h2 id="keepsake-title">保存贺卡纪念图</h2>
+                  <form method="dialog">
+                    <button type="submit" className="pill pill-outline" aria-label="关闭纪念图"><X size={18} aria-hidden="true" /></button>
+                  </form>
+                </div>
+                {keepsakeUrl && (
+                  <img src={keepsakeUrl} alt={`给 ${draft.recipient} 的生日贺卡纪念图`} className={styles.keepsakeImg} />
+                )}
+                <p className={styles.keepsakeTip}>手机微信内可长按上方图片保存到相册，桌面端可直接下载高清 PNG。</p>
+                <div className={styles.keepsakeActions}>
+                  <button type="button" className="pill pill-primary" onClick={downloadKeepsake}>
+                    <Download size={16} aria-hidden="true" /> 下载高清图片
+                  </button>
+                </div>
+              </dialog>
+            </>
           )}
         </section>
       )}

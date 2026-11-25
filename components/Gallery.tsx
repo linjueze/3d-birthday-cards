@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowDownRight, ArrowRight, BookOpen, ChevronLeft, ChevronRight, Mouse, Send, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import CardScene from "@/components/CardScene";
-import { Brand, useToast } from "@/components/Shared";
+import { Brand, playPaperOpenSound, useToast } from "@/components/Shared";
 import { CardThumb } from "@/components/Thumbnails";
 import { loadCoverArt } from "@/lib/art";
 import { defaultDraft, TEMPLATES, type TemplateSlug } from "@/lib/cards";
@@ -49,7 +49,7 @@ export default function Gallery() {
         <span className="gallery-spark spark-b" aria-hidden="true">✧</span>
         <span className="gallery-spark spark-c" aria-hidden="true">✦</span>
         <div className="gallery-scene scene-wrap">
-          <CardScene draft={draft} mode="gallery" open={open} onToggle={() => setOpen((value) => !value)} onTemplateSelect={choose} />
+          <CardScene draft={draft} mode="gallery" open={open} onToggle={() => { playPaperOpenSound(); setOpen((value) => !value); }} onTemplateSelect={choose} />
         </div>
         <div className="gallery-caption" aria-live="polite">
           <button className="icon-btn gallery-arrow" type="button" aria-label="上一张模板" onClick={() => move(-1)}><ChevronLeft size={19} /></button>
@@ -65,7 +65,7 @@ export default function Gallery() {
         </button>)}
       </div>
       <span className="dock-divider" aria-hidden="true" />
-      <button type="button" className="pill pill-quiet dock-open" onClick={() => setOpen((value) => !value)}><BookOpen size={17} />{open ? "合上贺卡" : "翻开贺卡"}</button>
+      <button type="button" className="pill pill-quiet dock-open" onClick={() => { playPaperOpenSound(); setOpen((value) => !value); }}><BookOpen size={17} />{open ? "合上贺卡" : "翻开贺卡"}</button>
       <Link className="pill pill-primary dock-create" href={`/editor?template=${slug}`}>制作贺卡<ArrowRight size={17} /></Link>
     </nav>
     <footer className="gallery-footer"><span>Birthday Cards</span><span>纸艺贺卡 · 私密链接分享</span></footer>

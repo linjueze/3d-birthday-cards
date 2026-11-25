@@ -125,21 +125,51 @@ export function stickerArt(type: StickerId): HTMLCanvasElement {
   ctx.lineJoin = "round";
   drawSticker[type](ctx);
 
+  // Subtle vintage warm watercolor paper wash over the sticker pigment so it blends
+  // harmoniously with the bespoke illustrated covers and Option B left frontispiece.
+  ctx.save();
+  ctx.globalCompositeOperation = "source-atop";
+  const sheen = ctx.createLinearGradient(24, 18, 176, 184);
+  sheen.addColorStop(0, "rgba(255, 250, 238, 0.22)");
+  sheen.addColorStop(.52, "rgba(255, 245, 224, 0.04)");
+  sheen.addColorStop(1, "rgba(122, 82, 56, 0.14)");
+  ctx.fillStyle = sheen;
+  ctx.fillRect(0, 0, 200, 200);
+  // Tactile cotton speckle dots inside pigment
+  ctx.fillStyle = "rgba(116, 80, 52, 0.06)";
+  for (let i = 0; i < 64; i++) {
+    const px = ((i * 73 + 19) % 168) + 16;
+    const py = ((i * 119 + 37) % 168) + 16;
+    ctx.fillRect(px, py, 2, 2);
+  }
+  ctx.restore();
+
+  // Warm cream cotton-paper die-cut sticker border + hairline antique-gold rim
+  const { canvas: outerMask, ctx: outerCtx } = surface(200, 200);
+  outerCtx.drawImage(ink, 0, 0);
+  outerCtx.globalCompositeOperation = "source-in";
+  outerCtx.fillStyle = "#e6cfa9";
+  outerCtx.fillRect(0, 0, 200, 200);
+
   const { canvas: mask, ctx: maskContext } = surface(200, 200);
   maskContext.drawImage(ink, 0, 0);
   maskContext.globalCompositeOperation = "source-in";
-  maskContext.fillStyle = "#fff3db";
+  maskContext.fillStyle = "#fff8eb";
   maskContext.fillRect(0, 0, 200, 200);
 
   const { canvas, ctx: output } = surface(200, 200);
-  output.shadowColor = "#79543b65";
-  output.shadowBlur = 4;
-  output.shadowOffsetY = 3;
-  output.drawImage(mask, 0, 0);
+  output.shadowColor = "rgba(86, 56, 38, 0.28)";
+  output.shadowBlur = 7;
+  output.shadowOffsetX = 1;
+  output.shadowOffsetY = 3.5;
+  for (let index = 0; index < 16; index++) {
+    const angle = index * Math.PI / 8;
+    output.drawImage(outerMask, Math.cos(angle) * 6.4, Math.sin(angle) * 6.4);
+  }
   output.shadowColor = "transparent";
-  for (let index = 0; index < 12; index++) {
-    const angle = index * Math.PI / 6;
-    output.drawImage(mask, Math.cos(angle) * 4.5, Math.sin(angle) * 4.5);
+  for (let index = 0; index < 16; index++) {
+    const angle = index * Math.PI / 8;
+    output.drawImage(mask, Math.cos(angle) * 5.2, Math.sin(angle) * 5.2);
   }
   output.drawImage(ink, 0, 0);
   cache.set(type, canvas);
