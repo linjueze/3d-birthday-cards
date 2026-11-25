@@ -245,7 +245,7 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
     });
     setSelectedSticker(id);
     setOpen(true);
-    playStickerStickSound();
+    playStickerStickSound(type);
   }
 
   function moveSticker(id: string, x: number, y: number) {
@@ -261,7 +261,7 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
     dragOriginal.current = null;
     if (snapshot) {
       setHistory((current) => ({ ...current, past: cap(current.past, snapshot), future: [] }));
-      playStickerStickSound();
+      playStickerStickSound(activeSticker?.type, true);
     }
   }
 
