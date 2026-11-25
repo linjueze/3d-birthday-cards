@@ -240,19 +240,36 @@
 }
 
 .transcriptBody { white-space: pre-wrap; }
+.transcriptMotto {
+  margin: -6px 0 14px !important;
+  color: #8c6d48;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: .92rem;
+}
 .transcript time { color: #776662; font-size: .78rem; }
 
-.hintDot { opacity: .45; }
+.replyRow {
+  margin-top: 8px;
+  display: flex;
+  justify-content: center;
+}
 .replyLink {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  min-height: 38px;
+  padding: 6px 14px;
+  border-radius: 999px;
   color: #7c3849;
+  background: rgb(255 255 255 / 72%);
+  border: 1px solid #eadad8;
+  font-size: .82rem;
   font-weight: 500;
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  text-decoration: none;
+  transition: background .16s, color .16s;
 }
-.replyLink:hover { color: #5c2231; }
+.replyLink:hover { background: #f8ecea; color: #5c2231; }
 
 .keepsakeDialog {
   width: min(740px, calc(100% - 24px));

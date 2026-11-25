@@ -30,7 +30,14 @@ function formatTime(date: string) {
 
 export default function OutboxView() {
   const [letters, setLetters] = useState<LocalOutboxItem[] | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const { notify, toast } = useToast();
+
+  useEffect(() => {
+    if (!confirmDeleteId) return;
+    const timer = window.setTimeout(() => setConfirmDeleteId(null), 3500);
+    return () => window.clearTimeout(timer);
+  }, [confirmDeleteId]);
 
   useEffect(() => {
     const sync = () => setLetters(loadLocalOutbox());
@@ -54,6 +61,11 @@ export default function OutboxView() {
   }
 
   function removeLetter(id: string) {
+    if (confirmDeleteId !== id) {
+      setConfirmDeleteId(id);
+      return;
+    }
+    setConfirmDeleteId(null);
     setLetters(deleteLocalOutboxItem(id));
     notify("已从本机寄件箱移除");
   }
@@ -105,8 +117,14 @@ export default function OutboxView() {
                     <Link className={`pill pill-quiet ${styles.previewBtn}`} href={letter.sharePath} target="_blank" rel="noreferrer" aria-label={`打开预览，寄给 ${letter.recipient}`} title="打开预览">
                       <ExternalLink size={15} aria-hidden="true" /><span>预览</span>
                     </Link>
-                    <button type="button" className={`icon-btn ${styles.deleteBtn}`} aria-label={`删除记录，寄给 ${letter.recipient}`} title="从本机移除" onClick={() => removeLetter(letter.id)}>
-                      <Trash2 size={16} />
+                    <button
+                      type="button"
+                      className={confirmDeleteId === letter.id ? `pill pill-outline ${styles.deleteConfirm}` : `icon-btn ${styles.deleteBtn}`}
+                      aria-label={confirmDeleteId === letter.id ? `确认删除记录，寄给 ${letter.recipient}` : `删除记录，寄给 ${letter.recipient}`}
+                      title={confirmDeleteId === letter.id ? "再次点击确认删除" : "从本机移除"}
+                      onClick={() => removeLetter(letter.id)}
+                    >
+                      <Trash2 size={15} />{confirmDeleteId === letter.id && <span>确认删除</span>}
                     </button>
                   </div>
                 </li>

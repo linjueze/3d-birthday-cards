@@ -101,10 +101,10 @@ button:disabled { cursor: default; }
 .dock-create { min-height: 47px; padding-inline: 22px; }
 .gallery-footer { width: min(calc(100% - 112px), 1320px); min-height: 62px; margin: 9px auto 0; display: flex; justify-content: space-between; align-items: center; color: #786a64; border-top: 1px solid #ece4e1; font-size: 11px; letter-spacing: .06em; }
 
-.toast-layer { position: fixed; z-index: 20; top: 95px; left: 50%; width: max-content; max-width: calc(100% - 24px); transform: translateX(-50%); pointer-events: none; }
-.toast { display: flex; align-items: center; gap: 10px; padding: 6px 7px 6px 15px; border: 1px solid #e8d8d4; border-radius: 999px; background: #fffdfa; color: #603b40; box-shadow: 0 12px 36px #55332920; pointer-events: auto; font-size: 13px; line-height: 1.45; animation: enter-toast .23s ease-out both; }
+.toast-layer { position: fixed; z-index: 30; top: 95px; left: 50%; width: max-content; max-width: calc(100% - 24px); transform: translateX(-50%); pointer-events: none; }
+.toast { display: flex; align-items: center; gap: 10px; padding: 6px 7px 6px 15px; border: 1px solid #e8d8d4; border-radius: 999px; background: #fffdfa; color: #603b40; box-shadow: 0 12px 36px #55332920; pointer-events: none; font-size: 13px; line-height: 1.45; animation: enter-toast .23s ease-out both; }
 .toast > svg { flex: none; }
-.toast .icon-btn { width: 34px; height: 34px; }
+.toast .icon-btn { width: 34px; height: 34px; pointer-events: auto; }
 @keyframes enter-toast { from { opacity: 0; transform: translateY(-9px); } to { opacity: 1; transform: translateY(0); } }
 .stars { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
 .stars i { position: absolute; top: -10px; left: var(--x); width: var(--size); height: var(--size); border-radius: 30%; background: #b38548; opacity: 0; transform: rotate(25deg); animation: gold-fall var(--duration) var(--delay) linear infinite; }
@@ -260,7 +260,7 @@ button:disabled { cursor: default; }
 .share-field { display: grid; gap: 6px; margin: 11px 0; }
 .share-field label { color: #5f4e47; font-size: 12px; font-weight: 600; }
 .share-field > div { display: flex; gap: 6px; align-items: center; min-width: 0; padding: 4px 6px 4px 10px; border: 1px solid #eadfda; border-radius: 11px; background: #fcf9f7; }
-.share-field input { min-width: 0; flex: 1; width: 100%; color: #63544e; background: transparent; border: 0; padding-block: 6px; font: 12px/1.25 var(--ui); }
+.share-field input { min-width: 0; flex: 1; width: 100%; color: #63544e; background: transparent; border: 0; padding-block: 6px; font: 12px/1.25 var(--ui); text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
 .share-field .icon-btn { width: 36px; height: 36px; }
 .share-copy-cta { width: 100%; margin-top: 4px; }
 .send-shortcuts { display: grid; gap: 8px; margin-top: 14px; }
@@ -301,9 +301,9 @@ button:disabled { cursor: default; }
   .gallery-dock { min-height: 64px; margin: 4px 12px 0; }
   .gallery-footer { min-height: 44px; margin-top: 8px; }
 
-  .scene-zoom-bar { right: 8px; bottom: 8px; padding: 2px 4px; gap: 1px; }
-  .scene-zoom-bar .icon-btn { width: 40px; height: 40px; }
-  .scene-zoom-pct { min-width: 44px; height: 40px; font-size: 12px; }
+  .scene-zoom-bar { right: 8px; bottom: 4px; padding: 2px 4px; gap: 1px; background: rgb(255 255 255 / 84%); }
+  .scene-zoom-bar .icon-btn { width: 34px; height: 34px; }
+  .scene-zoom-pct { min-width: 40px; height: 34px; font-size: 11px; }
 
   /* Canvas-first mobile studio: 3D card stays large & pinned on top; compact adaptive tool tray below */
   .editor-shell { position: fixed; inset: 0; display: flex; flex-direction: column; height: var(--vvh, 100dvh); min-height: 0; overflow: hidden; padding-bottom: 0; }
@@ -320,51 +320,65 @@ button:disabled { cursor: default; }
   .editor-shell[data-pack=sealed] .editor-stage { flex: none; height: clamp(160px, 24dvh, 210px); }
   .editor-stage-top { padding: 4px 2px 0; align-items: center; }
   .editor-stage-top .eyebrow { display: none; }
-  .editor-stage-top h1 { margin: 0; font-size: 18px; }
-  .editor-stage-actions { gap: 1px; padding: 2px 3px; }
-  .editor-stage-actions .icon-btn { width: 32px; height: 34px; }
-  .editor-preview { min-height: 34px; padding: 0 9px; font-size: 12px; }
+  .editor-stage-top h1 { margin: 0; font-size: 17px; white-space: nowrap; }
+  .editor-stage-actions { gap: 2px; padding: 2px 4px; }
+  .editor-stage-actions .icon-btn { width: 36px; height: 38px; }
+  .editor-preview { min-height: 38px; padding: 0 10px; font-size: 12px; }
   .editor-artwork { min-height: 0; height: 100%; }
   .stage-caption { min-height: 40px; padding: 2px 0 4px; }
-  .stage-view > button { min-height: 36px; padding: 4px 10px; font-size: 12px; }
+  .stage-view > button { min-height: 38px; padding: 5px 10px; font-size: 12px; }
+  .sticker-quickbar .icon-btn { width: 38px; height: 38px; }
+  .sticker-quick-done { height: 36px; padding: 0 12px; font-size: 12px; }
   .editor-shell[data-panel=open] .scene-zoom-bar { display: none; }
 
   /* Compact adaptive bottom trays so the 3D card always occupies 50-68% of the mobile screen */
-  .editor-panel { flex: 0 1 auto; min-height: 0; width: 100%; max-height: 40dvh; margin: 0; padding: 11px 14px 14px; border-radius: 20px 20px 0 0; border-inline: 0; border-bottom: 0; overflow-y: auto; touch-action: pan-y; -webkit-overflow-scrolling: touch; box-shadow: 0 -8px 26px rgb(52 34 28 / 7%); }
+  .editor-panel { flex: 0 1 auto; min-height: 0; width: 100%; max-height: 40dvh; margin: 0; padding: 0 14px 14px; border-radius: 20px 20px 0 0; border-inline: 0; border-bottom: 0; overflow-y: auto; touch-action: pan-y; -webkit-overflow-scrolling: touch; box-shadow: 0 -8px 26px rgb(52 34 28 / 7%); }
   .editor-shell[data-drawer=cover] .editor-panel,
   .editor-shell[data-drawer=paper] .editor-panel { max-height: 29dvh; }
   .editor-shell[data-drawer=music] .editor-panel { max-height: 41dvh; }
-  .editor-shell[data-drawer=stickers] .editor-panel { max-height: 28dvh; }
+  .editor-shell[data-drawer=stickers] .editor-panel { max-height: 29dvh; }
   .editor-shell[data-drawer=text] .editor-panel { max-height: 40dvh; }
-  .editor-shell[data-pack=sealed] .editor-panel { flex: 1; max-height: none; }
-  .editor-shell[data-typing=true] .editor-stage { min-height: 170px; }
+  .editor-shell[data-pack=sealed] .editor-panel { flex: 1; max-height: none; padding-top: 14px; }
+  /* When mobile keyboard opens, keep 2-row stage grid (1fr card + auto caption) so 3D card never collapses */
+  .editor-shell[data-typing=true] .editor-stage { min-height: 170px; grid-template-rows: minmax(0, 1fr) auto; }
   .editor-shell[data-typing=true] .editor-stage-top { display: none; }
   .editor-shell[data-typing=true] .editor-panel { max-height: 48dvh; padding-top: 8px; }
   .editor-shell[data-typing=true] .editor-panel-title { display: none; }
   .editor-shell[data-typing=true] .editor-dock { display: none; }
 
-  .editor-panel-title { margin-bottom: 8px; align-items: center; }
+  /* Sticky drawer header keeps title and close X reachable while scrolling text/music drawers */
+  .editor-panel-title { position: sticky; top: 0; z-index: 3; margin: 0 -14px 8px; padding: 10px 14px 8px; align-items: center; background: rgb(255 255 255 / 95%); backdrop-filter: blur(12px); border-bottom: 1px solid rgb(236 227 223 / 65%); }
   .editor-panel-title p { display: none; }
   .editor-panel h2 { font-size: 15px; }
-  .editor-panel .panel-close { width: 34px; height: 34px; margin: -4px -4px 0 0; }
+  .editor-panel .panel-close { width: 40px; height: 40px; margin: -6px -6px -6px 0; }
 
-  /* Horizontal single-row trays for Cover, Paper, Stickers, and Music on mobile */
-  .editor-cover-grid { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scroll-snap-type: x proximity; }
+  /* Horizontal single-row trays for Cover, Paper, Stickers on mobile (hide chunky scrollbars) */
+  .editor-cover-grid { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scroll-snap-type: x proximity; scrollbar-width: none; }
+  .editor-cover-grid::-webkit-scrollbar { display: none; }
   .editor-cover-choice { flex: 0 0 82px; padding: 4px 4px 6px; scroll-snap-align: start; }
   .editor-cover-choice > div { height: 74px; }
   .editor-cover-choice .card-thumb { height: 60px; }
   .editor-cover-choice > span { margin-top: 4px; font-size: 11px; white-space: nowrap; }
 
-  .editor-shell[data-drawer=paper] .option-list { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+  .editor-shell[data-drawer=paper] .option-list { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+  .editor-shell[data-drawer=paper] .option-list::-webkit-scrollbar { display: none; }
   .editor-shell[data-drawer=paper] .option-row { flex: 1 0 112px; flex-direction: column; align-items: flex-start; min-height: 0; padding: 8px 10px; gap: 5px; }
   .editor-shell[data-drawer=paper] .option-row small { display: none; }
   .editor-shell[data-drawer=paper] .option-row > svg { position: absolute; top: 8px; right: 8px; }
   .editor-shell[data-drawer=paper] .option-row { position: relative; }
 
-  .sticker-grid { display: grid; grid-template-columns: none; grid-auto-flow: column; grid-template-rows: repeat(2, auto); grid-auto-columns: 62px; gap: 4px 6px; overflow-x: auto; padding-bottom: 2px; }
-  .sticker-grid button { padding: 2px 2px 4px; }
+  .sticker-grid { display: grid; grid-template-columns: none; grid-auto-flow: column; grid-template-rows: repeat(2, auto); grid-auto-columns: 60px; gap: 4px 6px; overflow-x: auto; padding: 0 12px 2px 0; scrollbar-width: none; }
+  .sticker-grid::-webkit-scrollbar { display: none; }
+  .sticker-grid button { padding: 3px 2px 5px; }
   .sticker-thumb { width: 38px; height: 38px; }
   .placed-stickers { display: none; }
+
+  /* Comfortable thumb-friendly tap targets in text & music drawers */
+  .wish-tabs { gap: 6px; }
+  .wish-tabs button { min-height: 36px; padding: 6px 11px; font-size: 12px; }
+  .music-note-samples { gap: 6px; }
+  .music-note-samples button { min-height: 36px; padding: 6px 11px; font-size: 12px; }
+  .piano-key { min-height: 44px; padding: 7px 1px; }
 
   .editor-panel input, .editor-panel textarea, .editor-panel select { font-size: 16px; }
   .field textarea { min-height: 64px; }
@@ -378,7 +392,8 @@ button:disabled { cursor: default; }
 
   .editor-dock { position: static; left: auto; bottom: auto; transform: none; flex: none; width: 100%; justify-content: space-around; gap: 4px; padding: 4px 8px max(6px, env(safe-area-inset-bottom)); border-radius: 0; border-inline: 0; border-bottom: 0; box-shadow: 0 -4px 18px rgb(52 34 28 / 6%); }
   .editor-dock button { flex: 1; width: auto; max-width: 78px; height: 46px; gap: 2px; border-radius: 12px; font-size: 11px; }
-  .toast-layer { top: 56px; }
+  /* Position mobile toast over the top header so it never occludes the editor stage toolbar */
+  .toast-layer { top: 8px; }
 }
 
 @media (max-width: 480px) {

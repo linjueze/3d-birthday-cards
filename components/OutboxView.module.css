@@ -167,6 +167,17 @@
 .status > span { width: 5px; height: 5px; background: currentColor; border-radius: 50%; opacity: .65; }
 .status.opened { color: #28634b; background: #e1f1e6; }
 .copy { white-space: nowrap; }
+.deleteConfirm {
+  min-height: 40px;
+  padding-inline: 11px;
+  gap: 5px;
+  color: #9e2d42;
+  background: #fdf0f2;
+  border-color: #e6b4be;
+  font-size: .78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
 
 .empty {
   min-height: 145px;

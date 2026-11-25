@@ -50,6 +50,7 @@ export default function LetterReader() {
   const [burst, setBurst] = useState(false);
   const [keepsakeMode, setKeepsakeMode] = useState<"spread" | "poster">("spread");
   const [keepsakeUrl, setKeepsakeUrl] = useState("");
+  const [keepsakeSavedNote, setKeepsakeSavedNote] = useState("");
   const hasOpenedCard = useRef(false);
   const userMuted = useRef(false);
   const transcript = useRef<HTMLDialogElement>(null);
@@ -148,6 +149,7 @@ export default function LetterReader() {
 
   async function openKeepsake() {
     try {
+      setKeepsakeSavedNote("");
       await renderKeepsake(keepsakeMode);
       keepsakeDialog.current?.showModal();
     } catch {
@@ -157,6 +159,7 @@ export default function LetterReader() {
 
   async function switchKeepsakeMode(mode: "spread" | "poster") {
     setKeepsakeMode(mode);
+    setKeepsakeSavedNote("");
     try {
       await renderKeepsake(mode);
     } catch {
@@ -171,7 +174,9 @@ export default function LetterReader() {
     link.href = keepsakeUrl;
     link.download = `birthday-card-${safeName}-${keepsakeMode}.png`;
     link.click();
-    notify(keepsakeMode === "poster" ? "已开始下载 9:16 竖版海报" : "已开始下载双页明信片纪念图");
+    setKeepsakeSavedNote(keepsakeMode === "poster"
+      ? "✓ 已开始下载 9:16 竖版海报（微信内也可长按上方图片保存）"
+      : "✓ 已开始下载横版双页明信片（微信内也可长按上方图片保存）");
   }
 
   const recipient = draft.recipient;
@@ -277,9 +282,10 @@ export default function LetterReader() {
                 </div>
                 <p className={styles.hint}>
                   <Rotate3D size={15} aria-hidden="true" /> 拖动旋转 · 放大后单指平移看细节
-                  <span className={styles.hintDot} aria-hidden="true">·</span>
-                  <Link href="/" className={styles.replyLink}><PenLine size={13} aria-hidden="true" /> 我也想寄一封</Link>
                 </p>
+                <div className={styles.replyRow}>
+                  <Link href="/" className={styles.replyLink}><PenLine size={14} aria-hidden="true" /> 我也想寄一封</Link>
+                </div>
               </div>
             )}
           </div>
@@ -292,6 +298,7 @@ export default function LetterReader() {
                 </form>
                 <article>
                   <h2 id="transcript-title">Dear {draft.recipient}</h2>
+                  {draft.motto?.trim() && <p className={styles.transcriptMotto}>“{draft.motto.trim()}”</p>}
                   <p className={styles.transcriptBody}>{draft.message}</p>
                   {draft.sender && <p>— {draft.sender}</p>}
                   {draft.birthday && <time dateTime={draft.birthday}>{draft.birthday}</time>}
@@ -316,7 +323,9 @@ export default function LetterReader() {
                     className={`${styles.keepsakeImg} ${keepsakeMode === "poster" ? styles.keepsakePoster : ""}`}
                   />
                 )}
-                <p className={styles.keepsakeTip}>手机微信内可长按上方图片保存到相册，桌面端可直接下载高清 PNG。</p>
+                <p className={styles.keepsakeTip} role="status" aria-live="polite">
+                  {keepsakeSavedNote || "手机微信内可长按上方图片保存到相册，桌面端可直接下载高清 PNG。"}
+                </p>
                 <div className={styles.keepsakeActions}>
                   <button type="button" className="pill pill-primary" onClick={downloadKeepsake}>
                     <Download size={16} aria-hidden="true" /> 下载高清图片
