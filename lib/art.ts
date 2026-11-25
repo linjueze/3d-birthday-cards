@@ -1,4 +1,4 @@
-import type { CardDraft, FontId, PaperId, TemplateSlug } from "./cards";
+import { INK_OPTIONS, type CardDraft, type FontId, type PaperId, type TemplateSlug } from "./cards";
 import { coverBase, coverFoil, coverIllustration, coverPalette, drawPaperGrain } from "./art-covers";
 import { ART_HEIGHT, ART_WIDTH, drawPath, ellipse, gold, gradient, randomFrom, spacedText, star, surface } from "./art-ornaments";
 import { STICKER_BASE_SIZE, stickerArt } from "./art-stickers";
@@ -574,7 +574,8 @@ function bodyLayout(ctx: CanvasRenderingContext2D, draft: CardDraft, width: numb
 
 function insideRight(ctx: CanvasRenderingContext2D, draft: CardDraft, includeStickers: boolean) {
   const palette = paperPalette[draft.paper];
-  const paperInk = palette.ink;
+  const inkOption = INK_OPTIONS.find((item) => item.id === draft.ink);
+  const paperInk = inkOption ? (draft.paper === "kraft" ? inkOption.kraftColor : inkOption.color) : palette.ink;
   const metallic = gold(ctx, 180, 903);
   ctx.fillStyle = paperInk;
   const family = fontFamily[draft.font];

@@ -194,6 +194,18 @@ button:disabled { cursor: default; }
 .font-options { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 5px; }
 .font-options button { display: grid; place-items: center; min-width: 0; padding: 8px 2px; border: 1px solid #ece2de; border-radius: 8px; color: #735851; font-size: 12px; white-space: nowrap; }
 .font-options button:hover, .font-options button[aria-pressed=true] { color: #6d3542; background: #f4e8e5; border-color: #d6b6b4; }
+.ink-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.ink-options button { display: flex; align-items: center; gap: 7px; min-height: 36px; padding: 6px 9px; border: 1px solid #ece2de; border-radius: 9px; background: #fffdfb; color: #5f4b44; font-size: 12px; transition: background .16s, border-color .16s; }
+.ink-options button i { width: 15px; height: 15px; flex: none; border-radius: 50%; box-shadow: inset 0 1px 2px rgb(255 255 255 / 35%), 0 1px 3px rgb(40 24 18 / 22%); }
+.ink-options button:hover, .ink-options button[aria-checked=true] { background: #f6eae8; border-color: #cca5a7; color: #642c39; font-weight: 600; }
+
+.stage-caption-stack { display: flex; flex-direction: column; align-items: center; gap: 7px; }
+.sticker-quickbar { display: inline-flex; align-items: center; gap: 2px; padding: 4px 6px; border-radius: 999px; animation: toast-in .18s ease-out; }
+.sticker-quickbar .icon-btn { width: 32px; height: 32px; }
+.sticker-quickbar i { width: 1px; height: 18px; margin: 0 2px; background: #eae0db; }
+.sticker-quick-del { color: #9a3e52; }
+.sticker-quick-done { display: inline-flex; align-items: center; gap: 3px; height: 30px; padding: 0 10px; margin-left: 2px; border-radius: 999px; background: #2d201e; color: #fffaf5; font-size: 11px; font-weight: 600; }
+.sticker-quick-done:hover { background: #46322f; }
 .wishes { padding: 8px 9px; border: 1px solid #efe4df; border-radius: 9px; color: #783f4e; font-size: 12px; }
 .wishes summary { display: flex; align-items: center; gap: 7px; list-style: none; cursor: pointer; line-height: 1.3; }
 .wishes summary::-webkit-details-marker { display: none; }
@@ -294,9 +306,9 @@ button:disabled { cursor: default; }
   .editor-stage-top { padding: 8px 2px 0; align-items: center; }
   .editor-stage-top .eyebrow { display: none; }
   .editor-stage-top h1 { margin: 0; font-size: 20px; }
-  .editor-stage-actions { gap: 2px; padding: 2px 4px; }
-  .editor-stage-actions .icon-btn { width: 40px; height: 40px; }
-  .editor-preview { min-height: 40px; padding: 0 10px; font-size: 12px; }
+  .editor-stage-actions { gap: 1px; padding: 2px 3px; }
+  .editor-stage-actions .icon-btn { width: 34px; height: 36px; }
+  .editor-preview { min-height: 36px; padding: 0 9px; font-size: 12px; }
   .editor-artwork { min-height: 0; height: 100%; }
   .stage-caption { min-height: 46px; padding: 4px 0; }
   .stage-view > button { min-height: 40px; padding: 6px 11px; }

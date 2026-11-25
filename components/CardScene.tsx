@@ -127,7 +127,7 @@ function Fallback({ draft, mode, envelope, open, sealProgress, selectedSticker }
           {envelope === "sealed" || envelope === "breaking" ? (
             <div className="scene-envelope-stamp"><span>{waxPreset.glyph}</span><span>{waxPreset.glyph}</span></div>
           ) : (
-            <div className="scene-envelope-molten" style={{ "--seal-progress": sealProgress ?? 0 } as CSSProperties} />
+            <div className="scene-envelope-molten" style={{ "--seal-progress": envelope === "unsealed" ? Math.max(.26, sealProgress ?? 0) : (sealProgress ?? 0) } as CSSProperties} />
           )}
         </div>
       )}
@@ -174,10 +174,11 @@ export default function CardScene(props: SceneProps) {
   const fallbackZoom = useRef({ scale: 1, x: 0, y: 0 });
   const [gpu, setGpu] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const draggingStickerRef = useRef<string | null>(null);
   const canZoom = !props.envelope || props.envelope === "none" || props.envelope === "opened";
 
   useLayoutEffect(() => {
-    latest.current = props;
+    latest.current = { ...props, draggingSticker: draggingStickerRef.current };
   }, [props]);
 
   function applyFallbackView(nextScale: number, nextX = fallbackZoom.current.x, nextY = fallbackZoom.current.y) {
@@ -323,6 +324,10 @@ export default function CardScene(props: SceneProps) {
     }
 
     if (active.hit.sticker && props.onStickerMove) {
+      if (draggingStickerRef.current !== active.hit.sticker) {
+        draggingStickerRef.current = active.hit.sticker;
+        latest.current = { ...latest.current, draggingSticker: active.hit.sticker };
+      }
       const p = gpu && stage.current ? stage.current.paperPoint(event.clientX, event.clientY) : fallbackPoint(root, event.clientX, event.clientY);
       if (p) {
         const currentSticker = props.draft.stickers.find((item) => item.id === active.hit.sticker);
@@ -354,12 +359,20 @@ export default function CardScene(props: SceneProps) {
     gesture.current = null;
     if (active.panning) return;
     if (active.hit.sticker) {
+      if (draggingStickerRef.current) {
+        draggingStickerRef.current = null;
+        latest.current = { ...latest.current, draggingSticker: null };
+      }
       if (active.moved) props.onStickerCommit?.();
       return;
     }
     if (active.moved || cancelled || !active.hit.slug) return;
     if (active.hit.slug === props.draft.template) {
-      props.onToggle?.();
+      if (props.mode === "editor" && props.open && (active.hit.area === "left" || active.hit.area === "right") && props.onPageClick) {
+        props.onPageClick(active.hit.area);
+      } else {
+        props.onToggle?.();
+      }
     } else {
       fallbackRotation.current = { pitch: 0, yaw: 0 };
       root.current?.style.removeProperty("--fallback-x");

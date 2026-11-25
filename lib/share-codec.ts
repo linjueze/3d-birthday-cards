@@ -1,6 +1,6 @@
 import {
-  defaultDraft, FONT_OPTIONS, isTemplateSlug, isWaxId, PAPER_OPTIONS, STICKERS,
-  type CardDraft, type Sticker, type TemplateSlug, type WaxId,
+  defaultDraft, FONT_OPTIONS, isInkId, isTemplateSlug, isWaxId, PAPER_OPTIONS, STICKERS,
+  type CardDraft, type InkId, type Sticker, type TemplateSlug, type WaxId,
 } from "./cards";
 import { MAX_MESSAGE_LENGTH, MAX_NAME_LENGTH, MAX_STICKERS } from "./letters";
 
@@ -42,6 +42,7 @@ interface CompactLetter {
   st: ([number, number, number, number] | [number, number, number, number, number])[];
   w?: WaxId;
   mt?: string;
+  i?: InkId;
 }
 
 function bytesToBase64Url(bytes: Uint8Array): string {
@@ -86,6 +87,7 @@ async function decompressDeflateRaw(data: Uint8Array): Promise<Uint8Array | null
 
 export async function encodeSharedLetter(draft: CardDraft, deliverAt: string | null): Promise<string> {
   const wax = isWaxId(draft.wax) ? draft.wax : "rose";
+  const ink = isInkId(draft.ink) ? draft.ink : "sepia";
   const motto = (draft.motto ?? "").trim().slice(0, MAX_MOTTO_LENGTH);
   const compact: CompactLetter = {
     v: 1,
@@ -111,6 +113,7 @@ export async function encodeSharedLetter(draft: CardDraft, deliverAt: string | n
     }),
     ...(wax !== "rose" ? { w: wax } : {}),
     ...(motto ? { mt: motto } : {}),
+    ...(ink !== "sepia" ? { i: ink } : {}),
   };
 
   const raw = new TextEncoder().encode(JSON.stringify(compact));
@@ -169,6 +172,7 @@ export async function decodeSharedLetter(token: string): Promise<SharedLetterPay
     }
 
     const wax = isWaxId(parsed.w) ? parsed.w : "rose";
+    const ink = isInkId(parsed.i) ? parsed.i : "sepia";
     const motto = typeof parsed.mt === "string" ? parsed.mt.trim().slice(0, MAX_MOTTO_LENGTH) : "";
 
     return {
@@ -176,6 +180,7 @@ export async function decodeSharedLetter(token: string): Promise<SharedLetterPay
         template: parsed.t,
         paper,
         font,
+        ink,
         recipient,
         message,
         sender,
@@ -240,6 +245,7 @@ export function loadEditorDraft(): CardDraft | null {
     const base = defaultDraft(parsed.template);
     const paper = PAPER_OPTIONS.find((item) => item.id === parsed.paper)?.id ?? base.paper;
     const font = FONT_OPTIONS.find((item) => item.id === parsed.font)?.id ?? base.font;
+    const ink = isInkId(parsed.ink) ? parsed.ink : "sepia";
     const wax = isWaxId(parsed.wax) ? parsed.wax : "rose";
     const stickers: Sticker[] = Array.isArray(parsed.stickers)
       ? parsed.stickers.slice(0, MAX_STICKERS).filter((item): item is Sticker => (
@@ -258,6 +264,7 @@ export function loadEditorDraft(): CardDraft | null {
       template: parsed.template,
       paper,
       font,
+      ink,
       wax,
       recipient: typeof parsed.recipient === "string" ? parsed.recipient.slice(0, MAX_NAME_LENGTH) : "",
       message: typeof parsed.message === "string" ? parsed.message.slice(0, MAX_MESSAGE_LENGTH) : "",

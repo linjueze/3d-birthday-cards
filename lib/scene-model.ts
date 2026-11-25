@@ -219,7 +219,16 @@ export function buildBook(
   selection.position.z = CARD_DEPTH / 2 + .031;
   selection.visible = false;
   stickerGroup.add(selection);
-  const stickers = new Map<string, { type: CardDraft["stickers"][number]["type"]; mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshPhysicalMaterial> }>();
+  const stickers = new Map<string, {
+    type: CardDraft["stickers"][number]["type"];
+    mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshPhysicalMaterial>;
+    baseX: number;
+    baseY: number;
+    baseZ: number;
+    baseScale: number;
+    bornAt: number;
+  }>();
+  let stickersInitialized = false;
 
   function updateStickers(updated: CardDraft["stickers"], selected: string | null | undefined) {
     for (const [id, entry] of stickers) {
@@ -231,23 +240,37 @@ export function buildBook(
       stickers.delete(id);
     }
 
+    const now = performance.now();
     selection.visible = false;
     const geometrySize = STICKER_BASE_SIZE * CARD_WIDTH;
     updated.forEach((sticker, index) => {
       let entry = stickers.get(sticker.id);
+      const x = (sticker.x - .5) * CARD_WIDTH;
+      const y = (.5 - sticker.y) * CARD_HEIGHT;
+      const z = CARD_DEPTH / 2 + .009 + index * .0005;
       if (!entry) {
         const mesh = new THREE.Mesh(
           new THREE.PlaneGeometry(geometrySize, geometrySize),
           studioMaterial({ map: imageTexture(stickerArt(sticker.type)), transparent: true, depthWrite: false, alphaTest: .035, roughness: .72 }),
         );
-        entry = { type: sticker.type, mesh };
+        entry = {
+          type: sticker.type,
+          mesh,
+          baseX: x,
+          baseY: y,
+          baseZ: z,
+          baseScale: sticker.scale,
+          bornAt: stickersInitialized ? now : 0,
+        };
         stickerGroup.add(mesh);
         stickers.set(sticker.id, entry);
       }
-      const x = (sticker.x - .5) * CARD_WIDTH;
-      const y = (.5 - sticker.y) * CARD_HEIGHT;
       const rotationZ = -((sticker.rotation ?? 0) * Math.PI) / 180;
-      entry.mesh.position.set(x, y, CARD_DEPTH / 2 + .009 + index * .0005);
+      entry.baseX = x;
+      entry.baseY = y;
+      entry.baseZ = z;
+      entry.baseScale = sticker.scale;
+      entry.mesh.position.set(x, y, z);
       entry.mesh.scale.setScalar(sticker.scale);
       entry.mesh.rotation.z = rotationZ;
       entry.mesh.renderOrder = 4 + index * .01;
@@ -259,12 +282,13 @@ export function buildBook(
         selection.rotation.z = rotationZ;
       }
     });
+    stickersInitialized = true;
   }
 
   let paper: PaperId;
   let latestDraft: CardDraft = themedDraft;
   let leftKey = JSON.stringify([themedDraft.paper, themedDraft.birthday, themedDraft.motto ?? ""]);
-  let rightKey = JSON.stringify([themedDraft.paper, themedDraft.recipient, themedDraft.message, themedDraft.sender, themedDraft.font]);
+  let rightKey = JSON.stringify([themedDraft.paper, themedDraft.recipient, themedDraft.message, themedDraft.sender, themedDraft.font, themedDraft.ink ?? "sepia"]);
   let stickersKey = "";
 
   let fullInsideApplied = false;
@@ -310,11 +334,10 @@ export function buildBook(
       leftKey = nextLeftKey;
       replaceMap(leftMaterial, insideArt(latestDraft, "left", false, false));
     }
-    const nextRightKey = JSON.stringify([latestDraft.paper, latestDraft.recipient, latestDraft.message, latestDraft.sender, latestDraft.font]);
+    const nextRightKey = JSON.stringify([latestDraft.paper, latestDraft.recipient, latestDraft.message, latestDraft.sender, latestDraft.font, latestDraft.ink ?? "sepia"]);
     if (nextRightKey !== rightKey) {
       rightKey = nextRightKey;
-      rightMaterial.map!.image = insideArt(latestDraft, "right", false);
-      rightMaterial.map!.needsUpdate = true;
+      replaceMap(rightMaterial, insideArt(latestDraft, "right", false));
     }
     const nextStickersKey = JSON.stringify([latestDraft.stickers, selected]);
     if (nextStickersKey !== stickersKey) {
@@ -330,13 +353,36 @@ export function buildBook(
     update(next);
   }
 
-  function animate(elapsed: number, yaw: number, pitch: number, openFraction: number, reduced: boolean) {
+  function animate(elapsed: number, yaw: number, pitch: number, openFraction: number, reduced: boolean, draggingStickerId?: string | null) {
     foilSheen.update(elapsed, yaw, pitch, openFraction, reduced);
     livingFX.update(elapsed, openFraction, reduced);
+    if (stickers.size) {
+      const now = performance.now();
+      for (const [id, entry] of stickers) {
+        let liftZ = 0;
+        let scaleMul = 1;
+        if (!reduced && entry.bornAt > 0) {
+          const age = (now - entry.bornAt) / 320;
+          if (age < 1) {
+            const inv = 1 - age;
+            liftZ += inv * inv * .16;
+            scaleMul *= 1 + Math.sin(age * Math.PI * 1.45) * inv * .26;
+          } else {
+            entry.bornAt = 0;
+          }
+        }
+        if (id === draggingStickerId) {
+          liftZ += .095;
+          scaleMul *= 1.08;
+        }
+        entry.mesh.position.z = entry.baseZ + liftZ;
+        entry.mesh.scale.setScalar(entry.baseScale * scaleMul);
+      }
+    }
   }
 
   update(themedDraft);
-  return { slug, root, hinge, stickerGroup, rightInner, targets: [panel, leftInner, rightInner, backBoard], update, refreshText, animate, deactivate: () => { active = false; } };
+  return { slug, root, hinge, stickerGroup, leftInner, rightInner, targets: [panel, leftInner, rightInner, backBoard], update, refreshText, animate, deactivate: () => { active = false; } };
 }
 
 function selectionTexture() {
@@ -577,9 +623,11 @@ export function buildEnvelope(paper: ScenePaperMaps) {
   root.add(flap);
 
   let currentWax: WaxId = "rose";
+  let waxDropAt = 0;
   function setWax(waxId: WaxId) {
     if (currentWax === waxId) return;
     currentWax = waxId;
+    waxDropAt = performance.now();
     const preset = WAX_OPTIONS.find((item) => item.id === waxId) ?? WAX_OPTIONS[0];
     waxMaterial.color.set(preset.color);
     crackedWax.color.set(preset.color);
@@ -610,7 +658,9 @@ export function buildEnvelope(paper: ScenePaperMaps) {
       lastBend = bend;
     }
     molten.visible = waxProgress > 0 && sealed === 0;
-    const waxRadius = .095 + .305 * waxProgress;
+    const dropAge = waxDropAt ? Math.min(1, (performance.now() - waxDropAt) / 360) : 1;
+    const dropBounce = dropAge < 1 ? 1 + Math.sin(dropAge * Math.PI * 1.5) * (1 - dropAge) * .28 : 1;
+    const waxRadius = (.095 + .305 * waxProgress) * dropBounce;
     molten.scale.set(waxRadius * (1 + waxProgress * .13), waxRadius, .025 + .065 * waxProgress);
     molten.position.z = -.006 + .073 * waxProgress;
     crackedWax.opacity = crackedStamp.opacity = 1 - THREE.MathUtils.smoothstep(fracture, .50, 1);

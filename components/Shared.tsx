@@ -4,6 +4,7 @@ import Link from "next/link";
 import { CakeSlice, Check, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { OUTBOX_KEY, OUTBOX_TOKEN_PATTERN, type Music } from "@/lib/cards";
+import { isSfxMuted } from "@/lib/sfx";
 
 export function Brand({ className = "" }: { className?: string }) {
   return <Link href="/" className={`brand ${className}`} aria-label="Birthday Cards · 生日信，返回首页">
@@ -140,7 +141,7 @@ export function playWaxCrackSound() {
 }
 
 export function playPaperOpenSound() {
-  if (typeof window === "undefined" || !window.AudioContext) return;
+  if (typeof window === "undefined" || !window.AudioContext || isSfxMuted()) return;
   try {
     const context = new AudioContext();
     void context.resume().then(() => {

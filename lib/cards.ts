@@ -23,6 +23,19 @@ export const FONT_OPTIONS = [
   { id: "serif", label: "典雅宋体", family: "Noto Serif SC" },
 ] as const;
 
+export const INK_OPTIONS = [
+  { id: "sepia", label: "典雅咖棕", color: "#584033", kraftColor: "#4a3329" },
+  { id: "berry", label: "酒红莓果", color: "#7c3045", kraftColor: "#632234" },
+  { id: "indigo", label: "午夜黛蓝", color: "#2d426a", kraftColor: "#243554" },
+  { id: "pine", label: "松林墨绿", color: "#2f5447", kraftColor: "#254238" },
+] as const;
+
+export type InkId = typeof INK_OPTIONS[number]["id"];
+
+export function isInkId(value: unknown): value is InkId {
+  return INK_OPTIONS.some(({ id }) => id === value);
+}
+
 export const STICKERS = [
   { id: "cake", label: "生日蛋糕", symbol: "🎂" },
   { id: "candle", label: "蜡烛", symbol: "🕯️" },
@@ -113,6 +126,7 @@ export interface CardDraft {
   message: string;
   sender: string;
   font: FontId;
+  ink?: InkId;
   stickers: Sticker[];
   birthday: string;
   music: Music;
@@ -128,6 +142,7 @@ export function defaultDraft(template: TemplateSlug = TEMPLATES[0].slug): CardDr
     message: "",
     sender: "",
     font: "serif",
+    ink: "sepia",
     stickers: [],
     birthday: "",
     music: { kind: "music-box" },
@@ -135,6 +150,77 @@ export function defaultDraft(template: TemplateSlug = TEMPLATES[0].slug): CardDr
     motto: "",
   };
 }
+
+export interface StudioInspiration {
+  name: string;
+  template: TemplateSlug;
+  paper: PaperId;
+  font: FontId;
+  ink: InkId;
+  wax: WaxId;
+  motto: string;
+  message: string;
+  stickers: { type: StickerId; x: number; y: number; scale: number; rotation: number }[];
+}
+
+export const STUDIO_INSPIRATIONS: readonly StudioInspiration[] = [
+  {
+    name: "奶油烛光手账",
+    template: "candlelight-cake",
+    paper: "watercolor",
+    font: "long-cang",
+    ink: "berry",
+    wax: "rose",
+    motto: "愿这一岁的每一天都甜丝丝的",
+    message: "生日快乐！愿你新的一岁被温柔与惊喜环绕，永远闪闪发光。",
+    stickers: [
+      { type: "cake", x: .24, y: .78, scale: .92, rotation: -7 },
+      { type: "star", x: .79, y: .27, scale: .78, rotation: 10 },
+    ],
+  },
+  {
+    name: "午夜星河许愿",
+    template: "starry-wish",
+    paper: "pearl",
+    font: "serif",
+    ink: "indigo",
+    wax: "gold",
+    motto: "All your wishes, safely kept",
+    message: "谢谢你出现在我的世界里，愿这一岁所有的星光和偏爱都奔向你。",
+    stickers: [
+      { type: "bottle", x: .23, y: .77, scale: .9, rotation: -6 },
+      { type: "crown", x: .77, y: .26, scale: .82, rotation: 9 },
+    ],
+  },
+  {
+    name: "复古花园信笺",
+    template: "bloom-garden",
+    paper: "kraft",
+    font: "serif",
+    ink: "pine",
+    wax: "sage",
+    motto: "愿你如花般自由盛放",
+    message: "又长大一岁啦，希望你永远保留这份可爱与赤诚，平安喜乐，万事顺遂。",
+    stickers: [
+      { type: "bouquet", x: .24, y: .77, scale: .95, rotation: -8 },
+      { type: "bow", x: .78, y: .28, scale: .8, rotation: 8 },
+    ],
+  },
+  {
+    name: "香槟礼花派对",
+    template: "confetti-atelier",
+    paper: "pearl",
+    font: "long-cang",
+    ink: "berry",
+    wax: "cream",
+    motto: "Cheers to another wonderful year",
+    message: "Happy Birthday! 愿你眼中有光，心中有爱，步履所至皆是风景。",
+    stickers: [
+      { type: "champagne", x: .24, y: .77, scale: .92, rotation: -6 },
+      { type: "balloon", x: .79, y: .28, scale: .88, rotation: 7 },
+    ],
+  },
+];
 
 export const MAX_AUDIO_BYTES = 15 * 1024 * 1024;
 export const OUTBOX_KEY = "birthday-cards:outbox";

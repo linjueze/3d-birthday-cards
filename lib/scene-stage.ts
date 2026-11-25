@@ -5,11 +5,14 @@ import {
 } from "./scene-model";
 import { STICKER_BASE_SIZE } from "./art";
 
+export type SceneImpulse = { id: number; kind: "paper" | "cover" | "inspire" };
+
 export type SceneProps = {
   draft: CardDraft;
   mode: "gallery" | "editor" | "pack" | "letter";
   open?: boolean;
   onToggle?: () => void;
+  onPageClick?: (side: "left" | "right") => void;
   onTemplateSelect?: (slug: TemplateSlug) => void;
   envelope?: "none" | "packing" | "unsealed" | "sealed" | "breaking" | "opened";
   sealProgress?: number;
@@ -18,6 +21,8 @@ export type SceneProps = {
   onStickerMove?: (id: string, x: number, y: number) => void;
   onStickerCommit?: () => void;
   selectedSticker?: string | null;
+  draggingSticker?: string | null;
+  impulse?: SceneImpulse | null;
   focusMessage?: boolean;
   className?: string;
 };
@@ -72,7 +77,7 @@ function resolution(aspect: number) {
   return Math.max(5.63, 4.05 / aspect);
 }
 
-export type SceneHit = { slug?: TemplateSlug; sticker?: string; x?: number; y?: number };
+export type SceneHit = { slug?: TemplateSlug; sticker?: string; area?: "left" | "right" | "cover"; x?: number; y?: number };
 
 export function createStage(
   host: HTMLDivElement,
@@ -148,6 +153,9 @@ export function createStage(
   let panX = 0;
   let panY = 0;
   let activeFocusMessage = Boolean(read().focusMessage);
+  let lastImpulseId = 0;
+  let impulseKind: SceneImpulse["kind"] | null = null;
+  let impulseStart = 0;
   let lastWaxX = -1;
   let lastWaxY = -1;
   const waxWorld = new THREE.Vector3();
@@ -377,8 +385,40 @@ export function createStage(
     const gyroWeight = !reducedMotion && zoom < 1.08 && !showEnvelope ? (1 - open * .55) : 0;
     gyroPitch = damp(gyroPitch, targetGyroPitch * gyroWeight, 7, dt);
     gyroYaw = damp(gyroYaw, targetGyroYaw * gyroWeight, 7, dt);
-    const totalPitch = pitch + gyroPitch;
-    const totalYaw = yaw + gyroYaw;
+
+    if (props.impulse && props.impulse.id !== lastImpulseId) {
+      lastImpulseId = props.impulse.id;
+      impulseKind = props.impulse.kind;
+      impulseStart = now;
+      wake(1300);
+    }
+    let impYaw = 0;
+    let impPitch = 0;
+    let impScale = 1;
+    if (!reducedMotion && impulseKind) {
+      const dur = impulseKind === "paper" ? 1150 : impulseKind === "inspire" ? 880 : 620;
+      const t = (now - impulseStart) / dur;
+      if (t >= 1) {
+        impulseKind = null;
+      } else {
+        const decay = Math.pow(1 - t, 1.35);
+        if (impulseKind === "paper") {
+          // Gentle left-right light inspection sweep so cardstock grain & pearl sheen catch the light.
+          impYaw = Math.sin(t * Math.PI * 2) * .31 * decay;
+          impPitch = Math.sin(t * Math.PI) * .06 * decay;
+        } else if (impulseKind === "cover") {
+          impYaw = Math.sin(t * Math.PI * 1.4) * .22 * decay;
+          impScale = 1 + Math.sin(t * Math.PI) * .032 * decay;
+        } else {
+          impYaw = Math.sin(t * Math.PI * 2) * .26 * decay;
+          impPitch = Math.sin(t * Math.PI * 1.5) * .08 * decay;
+          impScale = 1 + Math.sin(t * Math.PI) * .04 * decay;
+        }
+      }
+    }
+
+    const totalPitch = pitch + gyroPitch + impPitch;
+    const totalYaw = yaw + gyroYaw + impYaw;
     zoom = reducedMotion ? requestedZoom : damp(zoom, requestedZoom, 12, dt);
     panX = reducedMotion ? requestedPanX : damp(panX, requestedPanX, 12, dt);
     panY = reducedMotion ? requestedPanY : damp(panY, requestedPanY, 12, dt);
@@ -423,7 +463,7 @@ export function createStage(
       const visible = active ? displayBook : gallery && open < .76;
       book.root.visible = shadow.visible = contact.visible = visible;
       if (!visible) continue;
-      book.animate(elapsed, active ? totalYaw : sideSlot.yaw * .3, active ? totalPitch : 0, active ? open : 0, reducedMotion);
+      book.animate(elapsed, active ? totalYaw : sideSlot.yaw * .3, active ? totalPitch : 0, active ? open : 0, reducedMotion, active ? props.draggingSticker : null);
 
       if (gallery) {
         const mobileX = mobile ? .86 : 1;
@@ -464,7 +504,7 @@ export function createStage(
       } else {
         const x = open * CARD_WIDTH / 2;
         const baseYaw = -.10 * (1 - open * .84);
-        updateBookPose(book, x, .035 + drift, .30, .057 + totalPitch, baseYaw + totalYaw, -.025 * (1 - open * .75), 1, open, dt, initial || reducedMotion);
+        updateBookPose(book, x, .035 + drift, .30, .057 + totalPitch, baseYaw + totalYaw, -.025 * (1 - open * .75), impScale, open, dt, initial || reducedMotion);
         updateBookShadow(entry, .46, open * 1.58);
       }
     }
@@ -482,6 +522,7 @@ export function createStage(
       let fracture = 0;
       let envelopeScale = 1;
       const progress = unit(props.sealProgress ?? 0);
+      const beadProgress = envelopePhase === "unsealed" ? Math.max(.26, progress) : progress;
       if (packaging) {
         positionY = packEnvY;
         // Keep envelope strictly parallel to card during insertion, then settle to poised tilt once sealed shut.
@@ -508,7 +549,7 @@ export function createStage(
       env.position.set(0, positionY, -.12);
       env.rotation.set(envRx, envRy, envRz);
       env.scale.setScalar(envelopeScale);
-      envelope.update(flap, progress, wax, fracture);
+      envelope.update(flap, beadProgress, wax, fracture);
       if (onWaxAnchor && (envelopePhase === "unsealed" || envelopePhase === "sealed")) {
         env.updateMatrixWorld(true);
         envelope.waxSpot.getWorldPosition(waxWorld);
@@ -571,14 +612,22 @@ export function createStage(
     const entry = allTargets.find(({ book }) => book.targets.some((target) => target === nearest?.object));
     if (!nearest || !entry) return {};
     const slug = entry.book.slug;
-    if (props.mode !== "editor" || slug !== props.draft.template || nearest.object !== entry.book.rightInner || !nearest.uv || open < .79) return { slug };
-    const x = nearest.uv.x;
-    const y = 1 - nearest.uv.y;
-    const found = [...props.draft.stickers].reverse().find((item) => {
-      const radius = STICKER_BASE_SIZE / 2 * item.scale;
-      return Math.abs(item.x - x) <= radius && Math.abs(item.y - y) <= radius * .75;
-    });
-    return { slug, sticker: found?.id, x: found ? x - found.x : x, y: found ? y - found.y : y };
+    if (open >= .79 && slug === props.draft.template) {
+      if (nearest.object === entry.book.leftInner) return { slug, area: "left" };
+      if (nearest.object === entry.book.rightInner && nearest.uv) {
+        if (props.mode === "editor") {
+          const x = nearest.uv.x;
+          const y = 1 - nearest.uv.y;
+          const found = [...props.draft.stickers].reverse().find((item) => {
+            const radius = STICKER_BASE_SIZE / 2 * item.scale;
+            return Math.abs(item.x - x) <= radius && Math.abs(item.y - y) <= radius * .75;
+          });
+          if (found) return { slug, area: "right", sticker: found.id, x: x - found.x, y: y - found.y };
+        }
+        return { slug, area: "right" };
+      }
+    }
+    return { slug, area: "cover" };
   }
 
   function rotate(dx: number, dy: number) {

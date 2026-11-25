@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   ArrowLeft, ArrowRight, BookOpen, Check, ChevronRight, CircleHelp, Copy, ExternalLink, Eye,
-  EyeOff, Layers2, Mail, MessageSquareShare, Music2, PackageCheck, Pause, Play, Redo2, RotateCcw,
-  Send, Sparkles, Stamp, Sticker as StickerIcon, Trash2, Type, Undo2, X,
+  EyeOff, Layers2, Mail, Maximize2, MessageSquareShare, Minimize2, Minus, Music2, PackageCheck,
+  Pause, Play, Plus, Redo2, RotateCcw, RotateCw, Send, Sparkles, Stamp, Sticker as StickerIcon,
+  Trash2, Type, Undo2, Volume2, VolumeX, Wand2, X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { flushSync } from "react-dom";
@@ -14,10 +15,16 @@ import { Brand, copyText, playPaperOpenSound, prepareSealSound, Stars, useMusic,
 import { CardThumb, StickerThumb } from "@/components/Thumbnails";
 import { loadCoverArt, STICKER_BASE_SIZE } from "@/lib/art";
 import {
-  defaultDraft, FONT_OPTIONS, isTemplateSlug, PAPER_OPTIONS, STICKERS, TEMPLATES, WAX_OPTIONS,
-  WISH_GROUPS, type CardDraft, type Music, type StickerId, type TemplateSlug,
+  defaultDraft, FONT_OPTIONS, INK_OPTIONS, isTemplateSlug, PAPER_OPTIONS, STICKERS,
+  STUDIO_INSPIRATIONS, TEMPLATES, WAX_OPTIONS, WISH_GROUPS,
+  type CardDraft, type Music, type StickerId, type TemplateSlug,
 } from "@/lib/cards";
 import { MAX_MESSAGE_LENGTH, MAX_NAME_LENGTH, MAX_STICKERS } from "@/lib/letters";
+import type { SceneImpulse } from "@/lib/scene-stage";
+import {
+  haptic, isSfxMuted, playInspireSound, playPaperSwishSound, playStickerPeelSound,
+  playStickerStickSound, playWaxDropSound, setSfxMuted,
+} from "@/lib/sfx";
 import {
   clearEditorDraft, encodeSharedLetter, loadEditorDraft, MAX_MOTTO_LENGTH, saveEditorDraft,
   saveLocalOutboxItem, withBasePath,
@@ -90,10 +97,17 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
   const [busy, setBusy] = useState(false);
   const [wishTab, setWishTab] = useState(0);
   const [restoredDraft, setRestoredDraft] = useState(false);
+  const [focusMessage, setFocusMessage] = useState(false);
+  const [impulse, setImpulse] = useState<SceneImpulse | null>(null);
+  const [sfxMuted, setSfxMutedState] = useState(false);
+  const [craftBurst, setCraftBurst] = useState(0);
   const hydratedDraft = useRef(false);
+  const inspireCursor = useRef(0);
   const { notify, toast } = useToast();
   const { playing, toggle: toggleMusic, stop: stopMusic } = useMusic(draft.music);
   const recipientInput = useRef<HTMLInputElement>(null);
+  const messageInput = useRef<HTMLTextAreaElement>(null);
+  const mottoInput = useRef<HTMLInputElement>(null);
   const dragOriginal = useRef<CardDraft | null>(null);
   const holdFrame = useRef<number | null>(null);
   const sealSound = useRef<ReturnType<typeof prepareSealSound>>(null);
@@ -126,6 +140,7 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
   useEffect(() => {
     setMinimum(localDateValue());
     setBaseUrl(window.location.origin);
+    setSfxMutedState(isSfxMuted());
     for (const item of TEMPLATES) void loadCoverArt(item.slug, item.slug === draft.template ? "high" : "low");
     const saved = loadEditorDraft();
     if (saved) {
@@ -139,6 +154,66 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
     hydratedDraft.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!craftBurst) return;
+    const timer = window.setTimeout(() => setCraftBurst(0), 1700);
+    return () => window.clearTimeout(timer);
+  }, [craftBurst]);
+
+  const triggerImpulse = useCallback((kind: SceneImpulse["kind"]) => {
+    setImpulse((current) => ({ id: (current?.id ?? 0) + 1, kind }));
+  }, []);
+
+  function toggleSfx() {
+    const next = !sfxMuted;
+    setSfxMuted(next);
+    setSfxMutedState(next);
+    notify(next ? "已关闭手作轻音效" : "已开启手作轻音效");
+  }
+
+  function applyInspiration() {
+    const preset = STUDIO_INSPIRATIONS[inspireCursor.current % STUDIO_INSPIRATIONS.length];
+    inspireCursor.current += 1;
+    edit((current) => ({
+      ...current,
+      template: preset.template,
+      paper: preset.paper,
+      font: preset.font,
+      ink: preset.ink,
+      wax: preset.wax,
+      motto: preset.motto,
+      message: preset.message,
+      stickers: preset.stickers.map((item) => ({ id: makeId(), ...item })),
+    }));
+    setSelectedSticker(null);
+    setOpen(true);
+    setFocusMessage(false);
+    playInspireSound();
+    triggerImpulse("inspire");
+    setCraftBurst((n) => n + 1);
+    notify(`已为你搭配「${preset.name}」灵感套装`);
+  }
+
+  function handlePageClick(side: "left" | "right") {
+    if (preview) {
+      playPaperOpenSound();
+      setOpen((value) => !value);
+      return;
+    }
+    setSelectedSticker(null);
+    flushSync(() => {
+      setDrawer("text");
+      setOpen(true);
+    });
+    if (side === "left") {
+      mottoInput.current?.focus();
+    } else if (!draft.recipient.trim()) {
+      recipientInput.current?.focus();
+    } else {
+      messageInput.current?.focus();
+    }
+  }
 
   useEffect(() => {
     if (!hydratedDraft.current || sent) return;
@@ -192,6 +267,7 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
     });
     setSelectedSticker(id);
     setOpen(true);
+    playStickerStickSound();
   }
 
   function moveSticker(id: string, x: number, y: number) {
@@ -205,7 +281,10 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
   function finishSticker() {
     const snapshot = dragOriginal.current;
     dragOriginal.current = null;
-    if (snapshot) setHistory((current) => ({ ...current, past: cap(current.past, snapshot), future: [] }));
+    if (snapshot) {
+      setHistory((current) => ({ ...current, past: cap(current.past, snapshot), future: [] }));
+      playStickerStickSound();
+    }
   }
 
   function clampSticker(sticker: CardDraft["stickers"][number], change: { scale?: number; x?: number; y?: number; rotation?: number }) {
@@ -227,6 +306,7 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
     if (!activeSticker) return;
     edit((current) => ({ ...current, stickers: current.stickers.filter(({ id }) => id !== activeSticker.id) }));
     setSelectedSticker(null);
+    playStickerPeelSound();
   }
 
   function startPacking() {
@@ -252,6 +332,7 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
 
   function startHold() {
     if (holdFrame.current !== null || pack !== "unsealed") return;
+    haptic(10);
     const start = performance.now();
     const advance = (now: number) => {
       const complete = Math.min(1, (now - start) / holdDuration);
@@ -260,6 +341,7 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
       else {
         holdFrame.current = null;
         setPack("sealed");
+        haptic([24, 30, 18]);
         sealSound.current?.play();
       }
     };
@@ -388,18 +470,23 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
             <h1>{pack === "none" ? theme.name : sent ? "生日信已寄出" : "把心意封好"}</h1>
           </div>
           {pack === "none" && <div className="editor-stage-actions glass">
+            <button type="button" className="icon-btn" aria-label="随机灵感搭配" title="随机灵感搭配" onClick={applyInspiration}><Wand2 size={17} /></button>
+            <button type="button" className="icon-btn" aria-label={sfxMuted ? "开启手作音效" : "静音手作音效"} title={sfxMuted ? "开启手作音效" : "静音手作音效"} onClick={toggleSfx}>{sfxMuted ? <VolumeX size={17} /> : <Volume2 size={17} />}</button>
+            <span />
             <button type="button" className="icon-btn" aria-label="撤销" title="撤销" disabled={!past.length} onClick={undo}><Undo2 size={18} /></button>
             <button type="button" className="icon-btn" aria-label="重做" title="重做" disabled={!future.length} onClick={redo}><Redo2 size={18} /></button>
             {restoredDraft && <button type="button" className="icon-btn" aria-label="清空草稿" title="清空草稿" onClick={resetDraft}><RotateCcw size={16} /></button>}
             <span />
-            <button type="button" className="pill editor-preview" aria-pressed={preview} onClick={() => { setPreview(!preview); setSelectedSticker(null); }}>{preview ? <EyeOff size={16} /> : <Eye size={16} />}<span>{preview ? "退出预览" : "预览"}</span></button>
+            <button type="button" className="pill editor-preview" aria-pressed={preview} onClick={() => { setPreview(!preview); setSelectedSticker(null); setFocusMessage(false); }}>{preview ? <EyeOff size={16} /> : <Eye size={16} />}<span>{preview ? "退出预览" : "预览"}</span></button>
           </div>}
         </div>
         {pack !== "none" && <Stars burst={pack === "sealed"} key={pack === "sealed" ? "burst" : "slow"} />}
+        {pack === "none" && craftBurst > 0 && <Stars burst key={`craft-${craftBurst}`} />}
         <div className="editor-artwork">
           <div className="editor-artwork-glow" aria-hidden="true" />
-          <CardScene draft={draft} mode={pack === "none" ? "editor" : "pack"} open={open} envelope={pack} sealProgress={progress} onReady={sceneReady}
-            onToggle={pack === "none" ? () => { playPaperOpenSound(); setOpen((value) => !value); } : undefined}
+          <CardScene draft={draft} mode={pack === "none" ? "editor" : "pack"} open={open} focusMessage={focusMessage} impulse={impulse} envelope={pack} sealProgress={progress} onReady={sceneReady}
+            onToggle={pack === "none" ? () => { playPaperOpenSound(); setOpen((value) => { if (value) setFocusMessage(false); return !value; }); } : undefined}
+            onPageClick={pack === "none" ? handlePageClick : undefined}
             onStickerSelect={!preview && pack === "none" ? setSelectedSticker : undefined}
             selectedSticker={!preview ? selectedSticker : null} onStickerMove={!preview ? moveSticker : undefined} onStickerCommit={!preview ? finishSticker : undefined} />
           {pack === "unsealed" && <button type="button" className="seal-target" aria-label="按住火漆处 1 秒，盖上印章" onPointerDown={holdPointer} onPointerUp={stopHold} onPointerCancel={stopHold} onLostPointerCapture={stopHold}
@@ -412,11 +499,31 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
           </button>}
         </div>
         <div className="stage-caption">
-          {pack === "none" ? <div className="stage-view glass">
-            <button type="button" aria-pressed={!open} onClick={() => { if (open) playPaperOpenSound(); setOpen(false); }}>封面 <span>1/2</span></button>
-            <button type="button" aria-pressed={open} onClick={() => { if (!open) playPaperOpenSound(); setOpen(true); }}>内页 <span>2/2</span></button>
-            <i />
-            <button type="button" className="stage-fold" onClick={() => { playPaperOpenSound(); setOpen((value) => !value); }}><BookOpen size={15} />{open ? "合上贺卡" : "翻开贺卡"}</button>
+          {pack === "none" ? <div className="stage-caption-stack">
+            {!preview && open && activeSticker && (
+              <div className="sticker-quickbar glass" role="toolbar" aria-label="贴纸快捷操作">
+                <button type="button" className="icon-btn" aria-label="向左旋转贴纸" title="左转 15°" onClick={() => { adjustSticker({ rotation: (activeSticker.rotation ?? 0) - 15 }); haptic(6); }}><RotateCcw size={15} /></button>
+                <button type="button" className="icon-btn" aria-label="向右旋转贴纸" title="右转 15°" onClick={() => { adjustSticker({ rotation: (activeSticker.rotation ?? 0) + 15 }); haptic(6); }}><RotateCw size={15} /></button>
+                <i />
+                <button type="button" className="icon-btn" aria-label="缩小贴纸" title="缩小" onClick={() => { adjustSticker({ scale: Math.max(.4, Number((activeSticker.scale - .15).toFixed(2))) }); haptic(6); }}><Minus size={15} /></button>
+                <button type="button" className="icon-btn" aria-label="放大贴纸" title="放大" onClick={() => { adjustSticker({ scale: Math.min(1.6, Number((activeSticker.scale + .15).toFixed(2))) }); haptic(6); }}><Plus size={15} /></button>
+                <i />
+                <button type="button" className="icon-btn sticker-quick-del" aria-label="撕掉贴纸" title="撕掉贴纸" onClick={deleteSticker}><Trash2 size={15} /></button>
+                <button type="button" className="sticker-quick-done" onClick={() => setSelectedSticker(null)}><Check size={14} />完成</button>
+              </div>
+            )}
+            <div className="stage-view glass">
+              <button type="button" aria-pressed={!open} onClick={() => { if (open) playPaperOpenSound(); setOpen(false); setFocusMessage(false); }}>封面 <span>1/2</span></button>
+              <button type="button" aria-pressed={open} onClick={() => { if (!open) playPaperOpenSound(); setOpen(true); }}>内页 <span>2/2</span></button>
+              <i />
+              {open ? (
+                <button type="button" className="stage-fold" aria-pressed={focusMessage} onClick={() => setFocusMessage((v) => !v)}>
+                  {focusMessage ? <Minimize2 size={14} /> : <Maximize2 size={14} />}{focusMessage ? "看双页" : "放大写字"}
+                </button>
+              ) : (
+                <button type="button" className="stage-fold" onClick={() => { playPaperOpenSound(); setOpen(true); }}><BookOpen size={15} />翻开贺卡</button>
+              )}
+            </div>
           </div> : <div className="pack-footer">
             {pack === "unsealed" && (
               <div className="wax-picker glass" role="radiogroup" aria-label="选择火漆印章">
@@ -427,7 +534,7 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
                     role="radio"
                     aria-checked={(draft.wax ?? "rose") === option.id}
                     className="wax-option"
-                    onClick={() => edit({ wax: option.id })}
+                    onClick={() => { edit({ wax: option.id }); playWaxDropSound(); }}
                   >
                     <i style={{ backgroundColor: option.color, color: option.stamp }}>{option.glyph}</i>
                     <span>{option.label}</span>
@@ -450,12 +557,12 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
           <button type="button" className="icon-btn panel-close" aria-label="收起面板" onClick={() => { setDrawer(null); setSelectedSticker(null); }}><X size={18} /></button>
         </div>
         {drawer === "cover" && <div className="editor-cover-grid">
-          {TEMPLATES.map((item) => <button type="button" key={item.slug} className="editor-cover-choice" aria-pressed={draft.template === item.slug} onClick={() => edit({ template: item.slug })}>
+          {TEMPLATES.map((item) => <button type="button" key={item.slug} className="editor-cover-choice" aria-pressed={draft.template === item.slug} onClick={() => { edit({ template: item.slug }); playPaperSwishSound(1.08); triggerImpulse("cover"); }}>
             <div style={{ backgroundColor: item.color }}><CardThumb slug={item.slug} /></div><span>{item.name}</span>
           </button>)}
         </div>}
         {drawer === "paper" && <div className="option-list">
-          {PAPER_OPTIONS.map((paper) => <button type="button" key={paper.id} className="option-row" aria-pressed={draft.paper === paper.id} onClick={() => edit({ paper: paper.id })}>
+          {PAPER_OPTIONS.map((paper) => <button type="button" key={paper.id} className="option-row" aria-pressed={draft.paper === paper.id} onClick={() => { edit({ paper: paper.id }); playPaperSwishSound(.92); triggerImpulse("paper"); }}>
             <i className="paper-sample" style={{ backgroundColor: paper.color }} />
             <span><strong>{paper.label}</strong><small>{paper.description}</small></span>
             {draft.paper === paper.id && <Check size={17} />}
@@ -478,18 +585,19 @@ export default function Editor({ initialTemplate }: { initialTemplate?: Template
         </>}
         {drawer === "text" && <div className="text-tools">
           <label className="field"><span>收件人</span><span className="recipient-field"><span>Dear</span><input ref={recipientInput} value={draft.recipient} onChange={(event) => { edit({ recipient: event.target.value }); setOpen(true); }} maxLength={MAX_NAME_LENGTH} placeholder="TA 的名字" /></span></label>
-          <label className="field"><span>生日祝福</span><textarea rows={4} value={draft.message} onChange={(event) => { edit({ message: event.target.value }); setOpen(true); }} maxLength={MAX_MESSAGE_LENGTH} placeholder="把想说的话写在这里…" /></label>
+          <label className="field"><span>生日祝福</span><textarea ref={messageInput} rows={4} value={draft.message} onChange={(event) => { edit({ message: event.target.value }); setOpen(true); }} maxLength={MAX_MESSAGE_LENGTH} placeholder="把想说的话写在这里…" /></label>
           <label className="field"><span>落款</span><input value={draft.sender} onChange={(event) => { edit({ sender: event.target.value }); setOpen(true); }} maxLength={MAX_NAME_LENGTH} placeholder="你的名字" /></label>
           <div className="field"><span>书写字体</span><div className="font-options">{FONT_OPTIONS.map((font) => <button type="button" key={font.id} aria-pressed={draft.font === font.id} onClick={() => edit({ font: font.id })} style={{ fontFamily: `"${font.family}", serif` }}>{font.label}</button>)}</div></div>
+          <div className="field"><span>钢笔墨水色</span><div className="ink-options" role="radiogroup" aria-label="选择钢笔墨水色">{INK_OPTIONS.map((ink) => <button type="button" key={ink.id} role="radio" aria-checked={(draft.ink ?? "sepia") === ink.id} onClick={() => { edit({ ink: ink.id }); setOpen(true); haptic(6); }}><i style={{ backgroundColor: ink.color }} /><span>{ink.label}</span></button>)}</div></div>
           <details className="wishes"><summary><Sparkles size={15} /> 选一句生日祝福 <ChevronRight size={15} /></summary>
             <div className="wish-tabs" role="tablist" aria-label="祝福分类">
               {WISH_GROUPS.map((group, idx) => (
                 <button key={group.label} type="button" role="tab" aria-selected={wishTab === idx} onClick={() => setWishTab(idx)}>{group.label}</button>
               ))}
             </div>
-            {WISH_GROUPS[wishTab].items.map((wish) => <button type="button" key={wish} className="wish-item" onClick={() => { edit({ message: wish }); setOpen(true); }}>{wish}</button>)}
+            {WISH_GROUPS[wishTab].items.map((wish) => <button type="button" key={wish} className="wish-item" onClick={() => { edit({ message: wish }); setOpen(true); haptic(8); }}>{wish}</button>)}
           </details>
-          <label className="field"><span>左页扉页短句 <small>选填，留空显示默认英文寄语</small></span><input value={draft.motto ?? ""} onChange={(event) => { edit({ motto: event.target.value }); setOpen(true); }} maxLength={MAX_MOTTO_LENGTH} placeholder="如：愿你永远自由、闪闪发光" /></label>
+          <label className="field"><span>左页扉页短句 <small>选填，留空显示默认英文寄语</small></span><input ref={mottoInput} value={draft.motto ?? ""} onChange={(event) => { edit({ motto: event.target.value }); setOpen(true); }} maxLength={MAX_MOTTO_LENGTH} placeholder="如：愿你永远自由、闪闪发光" /></label>
           <label className="field"><span>生日日期印章 <small>选填</small></span><input type="date" value={draft.birthday} onChange={(event) => { edit({ birthday: event.target.value }); setOpen(true); }} /></label>
         </div>}
         {drawer === "music" && <div className="option-list">
