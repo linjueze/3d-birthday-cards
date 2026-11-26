@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import {
-  COVER_MANIFEST, coverArt, coverVectorFoilOverlay, getInitialCoverBase, insideArt, insideEmblemArt, isFullCoverBaseCached,
+  COVER_MANIFEST, coverArt, getInitialCoverBase, insideArt, insideEmblemArt, isFullCoverBaseCached,
   linerArt, loadCoverArt, loadCoverBase, loadCoverPreview, loadInsideArt, loadInsidePreview, paperMaps,
   placeholderCoverArt, STICKER_BASE_SIZE, stickerArt,
 } from "./art";
@@ -46,9 +46,8 @@ function studioMaterial(options: THREE.MeshPhysicalMaterialParameters) {
 
 function heightNormal(source: HTMLCanvasElement, strength: number, channel = 0) {
   const size = document.createElement("canvas");
-  const isHd = typeof window !== "undefined" && window.innerWidth >= 820;
-  size.width = isHd ? 512 : 384;
-  size.height = isHd ? 682 : 512;
+  size.width = 384;
+  size.height = 512;
   const context = size.getContext("2d")!;
   context.drawImage(source, 0, 0, size.width, size.height);
   const original = context.getImageData(0, 0, size.width, size.height).data;
@@ -93,115 +92,6 @@ export function buildPaperMaps() {
 
 export type ScenePaperMaps = ReturnType<typeof buildPaperMaps>;
 
-type ThemeCraftProfile = {
-  edgeStyle: "gilded" | "deckled";
-  edgeColor: string;
-  roughness: number;
-  clearcoat: number;
-  clearcoatRoughness: number;
-  sheen: number;
-  sheenRoughness: number;
-  sheenColor: string;
-  iridescence: number;
-  iridescenceIOR: number;
-  normalBoost: number;
-};
-
-const THEME_CRAFT: Record<TemplateSlug, ThemeCraftProfile> = {
-  "candlelight-cake": {
-    edgeStyle: "gilded", edgeColor: "#d8b46e",
-    roughness: .87, clearcoat: .05, clearcoatRoughness: .55,
-    sheen: .18, sheenRoughness: .72, sheenColor: "#fff2dc",
-    iridescence: 0, iridescenceIOR: 1.3, normalBoost: 1.0,
-  },
-  "starry-wish": {
-    edgeStyle: "gilded", edgeColor: "#d6ae62",
-    roughness: .50, clearcoat: .42, clearcoatRoughness: .32,
-    sheen: .38, sheenRoughness: .48, sheenColor: "#8ea8df",
-    iridescence: .44, iridescenceIOR: 1.35, normalBoost: .8,
-  },
-  "bloom-garden": {
-    edgeStyle: "deckled", edgeColor: "#ece5d6",
-    roughness: .92, clearcoat: 0, clearcoatRoughness: .65,
-    sheen: .10, sheenRoughness: .8, sheenColor: "#eaf0e0",
-    iridescence: 0, iridescenceIOR: 1.3, normalBoost: 1.28,
-  },
-  "confetti-atelier": {
-    edgeStyle: "gilded", edgeColor: "#d7af64",
-    roughness: .94, clearcoat: 0, clearcoatRoughness: .7,
-    sheen: .85, sheenRoughness: .50, sheenColor: "#d9899b",
-    iridescence: 0, iridescenceIOR: 1.3, normalBoost: 1.05,
-  },
-  "sakura-mail": {
-    edgeStyle: "deckled", edgeColor: "#f3dfe2",
-    roughness: .56, clearcoat: .34, clearcoatRoughness: .36,
-    sheen: .42, sheenRoughness: .52, sheenColor: "#ffdbe3",
-    iridescence: .28, iridescenceIOR: 1.32, normalBoost: .85,
-  },
-  "teddy-birthday": {
-    edgeStyle: "gilded", edgeColor: "#cfa45e",
-    roughness: .89, clearcoat: .03, clearcoatRoughness: .6,
-    sheen: .16, sheenRoughness: .74, sheenColor: "#f2d8b6",
-    iridescence: 0, iridescenceIOR: 1.3, normalBoost: 1.15,
-  },
-  "atelier-tea": {
-    edgeStyle: "deckled", edgeColor: "#e2e8d9",
-    roughness: .88, clearcoat: .06, clearcoatRoughness: .58,
-    sheen: .14, sheenRoughness: .76, sheenColor: "#e6ecd9",
-    iridescence: 0, iridescenceIOR: 1.3, normalBoost: 1.2,
-  },
-};
-
-let cachedEdgeMaps: { gilded: THREE.CanvasTexture; deckled: THREE.CanvasTexture } | null = null;
-
-function getEdgeTextures() {
-  if (cachedEdgeMaps) return cachedEdgeMaps;
-
-  // Brushed horizontal grain normal map for gilded gold stationery edges
-  const gCanvas = document.createElement("canvas");
-  gCanvas.width = 128;
-  gCanvas.height = 128;
-  const gCtx = gCanvas.getContext("2d")!;
-  const gImg = gCtx.createImageData(128, 128);
-  for (let y = 0; y < 128; y++) {
-    const streak = Math.sin(y * .65) * 18 + Math.cos(y * 1.9) * 9;
-    for (let x = 0; x < 128; x++) {
-      const idx = (y * 128 + x) * 4;
-      const micro = Math.sin(x * .2 + y * 1.3) * 6;
-      gImg.data[idx] = 128 + micro;
-      gImg.data[idx + 1] = 128 + streak;
-      gImg.data[idx + 2] = 248;
-      gImg.data[idx + 3] = 255;
-    }
-  }
-  gCtx.putImageData(gImg, 0, 0);
-
-  // Layered fibrous cotton-sheet striations for hand-torn deckled edges
-  const dCanvas = document.createElement("canvas");
-  dCanvas.width = 128;
-  dCanvas.height = 128;
-  const dCtx = dCanvas.getContext("2d")!;
-  const dImg = dCtx.createImageData(128, 128);
-  for (let y = 0; y < 128; y++) {
-    for (let x = 0; x < 128; x++) {
-      const idx = (y * 128 + x) * 4;
-      const fiber = Math.sin(y * 1.45 + Math.sin(x * .18) * 2.5) * 34 + Math.cos(x * .7 + y * .4) * 16;
-      dImg.data[idx] = 128 + Math.sin(x * .5 + y * .3) * 22;
-      dImg.data[idx + 1] = 128 + fiber;
-      dImg.data[idx + 2] = 232;
-      dImg.data[idx + 3] = 255;
-    }
-  }
-  dCtx.putImageData(dImg, 0, 0);
-
-  const gilded = imageTexture(gCanvas, false, 4);
-  const deckled = imageTexture(dCanvas, false, 4);
-  gilded.wrapS = gilded.wrapT = deckled.wrapS = deckled.wrapT = THREE.RepeatWrapping;
-
-  cachedEdgeMaps = { gilded, deckled };
-  return cachedEdgeMaps;
-}
-
 function cardPlane(material: THREE.Material, x: number, z: number, back = false) {
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(CARD_WIDTH, CARD_HEIGHT), material);
   mesh.position.set(x, 0, z);
@@ -217,8 +107,6 @@ export function buildBook(
   isPriority = true,
 ) {
   const template = TEMPLATES.find((item) => item.slug === slug)!;
-  const craft = THEME_CRAFT[slug];
-  const craftMaps = getEdgeTextures();
   const hasExternalMaps = Object.keys(COVER_MANIFEST[slug].maps ?? {}).length > 0;
   const artwork = hasExternalMaps ? placeholderCoverArt(slug) : coverArt(slug);
   const root = new THREE.Group();
@@ -226,85 +114,43 @@ export function buildBook(
   hinge.position.set(-HALF_CARD, 0, COVER_CENTER);
   root.add(hinge);
 
-  const spineColor = new THREE.Color(template.color).lerp(new THREE.Color("#c9ae88"), .34);
-  const spineEdge = studioMaterial({ color: spineColor, roughness: .84 });
-  const trimEdge = craft.edgeStyle === "gilded"
-    ? studioMaterial({
-        color: craft.edgeColor,
-        normalMap: craftMaps.gilded,
-        normalScale: new THREE.Vector2(.28, .28),
-        metalness: .78,
-        roughness: .27,
-        clearcoat: .58,
-        clearcoatRoughness: .22,
-        emissive: new THREE.Color("#6b4d1b"),
-        emissiveIntensity: .09,
-      })
-    : studioMaterial({
-        color: craft.edgeColor,
-        normalMap: craftMaps.deckled,
-        normalScale: new THREE.Vector2(.65, .65),
-        metalness: 0,
-        roughness: .96,
-        sheen: .22,
-        sheenRoughness: .82,
-        sheenColor: new THREE.Color("#fff7ec"),
-      });
-  // BoxGeometry material order: [+x right, -x left(spine), +y top, -y bottom, +z front, -z back]
-  const edgeMaterial = [trimEdge, spineEdge, trimEdge, trimEdge, spineEdge, spineEdge];
+  const edge = studioMaterial({ color: new THREE.Color(template.color).lerp(new THREE.Color("#c9ae88"), .34) });
+  const edgeMaterial = [edge, edge, edge, edge, edge, edge];
   const backBoard = new THREE.Mesh(new THREE.BoxGeometry(CARD_WIDTH, CARD_HEIGHT, CARD_DEPTH), edgeMaterial);
   const coverBoard = new THREE.Mesh(new THREE.BoxGeometry(CARD_WIDTH, CARD_HEIGHT, CARD_DEPTH), edgeMaterial);
   coverBoard.position.x = HALF_CARD;
   root.add(backBoard);
   hinge.add(coverBoard);
 
-  const spine = new THREE.Mesh(new THREE.CylinderGeometry(.037, .037, CARD_HEIGHT, 8), spineEdge);
+  const spine = new THREE.Mesh(new THREE.CylinderGeometry(.037, .037, CARD_HEIGHT, 8), edge);
   spine.position.set(-HALF_CARD + .017, 0, COVER_CENTER / 2);
   root.add(spine);
 
-  // Frame 0: Paint the inline 240x320 NEW illustrated cover (or cached HD base.webp) immediately —
+  // Frame 0: Paint the inline 240x320 NEW illustrated cover (or cached full-res base.webp) immediately —
   // never shows the legacy procedural cover and never shows a blank card while full-res WebPs download.
   const initialBase = hasExternalMaps ? getInitialCoverBase(slug) : artwork.base;
-  const exterior = studioMaterial({
-    map: imageTexture(initialBase),
-    roughness: craft.roughness,
-    clearcoat: craft.clearcoat,
-    clearcoatRoughness: craft.clearcoatRoughness,
-    sheen: craft.sheen,
-    sheenRoughness: craft.sheenRoughness,
-    sheenColor: new THREE.Color(craft.sheenColor),
-    iridescence: craft.iridescence,
-    iridescenceIOR: craft.iridescenceIOR,
-  });
-
+  const exterior = studioMaterial({ map: imageTexture(initialBase), roughness: .81 });
   let reliefNormal: THREE.CanvasTexture | null = hasExternalMaps ? null : heightNormal(artwork.height, .67);
   const relief = studioMaterial({
-    map: imageTexture(artwork.illustration), normalMap: reliefNormal, normalScale: new THREE.Vector2(.54, .54),
-    transparent: true, depthWrite: false, alphaTest: .025, clearcoat: .22, clearcoatRoughness: .55, roughness: .72,
+    map: imageTexture(artwork.illustration), normalMap: reliefNormal, normalScale: new THREE.Vector2(.52, .52),
+    transparent: true, depthWrite: false, alphaTest: .025, clearcoat: .21, clearcoatRoughness: .57, roughness: .73,
   });
   const foil = studioMaterial({
-    map: imageTexture(artwork.foil), normalMap: reliefNormal, normalScale: new THREE.Vector2(.56, .56),
-    transparent: true, depthWrite: false, alphaTest: .035, clearcoat: .76, clearcoatRoughness: .18,
-    roughness: .28, metalness: .62, emissive: new THREE.Color("#8a6226"), emissiveIntensity: .07,
+    map: imageTexture(artwork.foil), normalMap: reliefNormal, normalScale: new THREE.Vector2(.54, .54),
+    transparent: true, depthWrite: false, alphaTest: .035, clearcoat: .72, clearcoatRoughness: .2,
+    roughness: .32, metalness: .48, emissive: new THREE.Color("#8a6226"), emissiveIntensity: .08,
   });
-  // High-DPI crisp vector antique-gold hairline border & series hallmark (sharp at 240% zoom)
-  const vectorFoilMat = studioMaterial({
-    map: imageTexture(coverVectorFoilOverlay(slug)),
-    transparent: true, depthWrite: false, alphaTest: .02,
-    clearcoat: .75, clearcoatRoughness: .18, roughness: .26, metalness: .66,
-    emissive: new THREE.Color("#8a6226"), emissiveIntensity: .06,
-  });
-
   const isDarkCover = slug === "starry-wish" || slug === "confetti-atelier";
   const foilSheen = createFoilSheen(CARD_WIDTH, CARD_HEIGHT, foil.map!, isDarkCover);
-  foilSheen.mesh.position.set(HALF_CARD, 0, CARD_DEPTH / 2 + .016);
+  foilSheen.mesh.position.set(HALF_CARD, 0, CARD_DEPTH / 2 + .0145);
   const livingFX = createCoverLivingFX(slug);
-  livingFX.group.position.set(HALF_CARD, 0, CARD_DEPTH / 2 + .019);
+  livingFX.group.position.set(HALF_CARD, 0, CARD_DEPTH / 2 + .017);
 
   let active = true;
   let fullBaseApplied = !hasExternalMaps || isFullCoverBaseCached(slug);
   if (hasExternalMaps) {
     const priority = isPriority ? "high" : "low";
+    // If the inline 240x320 preview was still decoding during the very first 2ms, swap it in immediately.
     if (!fullBaseApplied) {
       void loadCoverPreview(slug).then((previewCanvas) => {
         if (!active || fullBaseApplied || !previewCanvas) return;
@@ -312,6 +158,9 @@ export function buildBook(
         onMaterialChange();
       }).catch(() => undefined);
     }
+    // Kick off base.webp AND all PBR layers in parallel (zero waterfall!):
+    // - full-res base.webp sharpens exterior the millisecond it finishes (without waiting for foil/relief)
+    // - relief, foil, and height normal layer seamlessly right behind it.
     void loadCoverBase(slug, priority).then((baseCanvas) => {
       if (!active || !baseCanvas) return;
       fullBaseApplied = true;
@@ -327,7 +176,7 @@ export function buildBook(
       foilSheen.setMap(foil.map!);
       if (replacement.height !== artwork.height) {
         reliefNormal?.dispose();
-        reliefNormal = heightNormal(replacement.height, .76);
+        reliefNormal = heightNormal(replacement.height, .72);
         relief.normalMap = foil.normalMap = reliefNormal;
         relief.needsUpdate = foil.needsUpdate = true;
       }
@@ -336,12 +185,10 @@ export function buildBook(
   }
   const panel = cardPlane(exterior, HALF_CARD, CARD_DEPTH / 2 + .001);
   const illustration = cardPlane(relief, HALF_CARD, CARD_DEPTH / 2 + .008);
-  const gilding = cardPlane(foil, HALF_CARD, CARD_DEPTH / 2 + .0115);
-  const vectorFoil = cardPlane(vectorFoilMat, HALF_CARD, CARD_DEPTH / 2 + .0135);
+  const gilding = cardPlane(foil, HALF_CARD, CARD_DEPTH / 2 + .012);
   illustration.renderOrder = 2;
   gilding.renderOrder = 3;
-  vectorFoil.renderOrder = 4;
-  hinge.add(panel, illustration, gilding, vectorFoil, foilSheen.mesh, livingFX.group);
+  hinge.add(panel, illustration, gilding, foilSheen.mesh, livingFX.group);
   const backing = studioMaterial({ color: template.color, roughness: .8 });
   root.add(cardPlane(backing, 0, -CARD_DEPTH / 2 - .001, true));
 
@@ -470,7 +317,7 @@ export function buildBook(
       }
       paper = next.paper;
       const maps = allMaps.get(paper)!;
-      for (const material of [backing, leftMaterial, rightMaterial]) {
+      for (const material of [exterior, backing, leftMaterial, rightMaterial]) {
         material.normalMap = maps.normal;
         material.roughnessMap = maps.roughness;
         const scale = paper === "watercolor" ? .35 : .22;
@@ -479,16 +326,7 @@ export function buildBook(
         material.clearcoat = paper === "pearl" ? .31 : .02;
         material.needsUpdate = true;
       }
-      // Preserve each theme's signature cover finish (velvet / iridescent pearl / linen / cotton)
-      // while still letting user paper selection gently modulate texture & tint.
-      exterior.normalMap = maps.normal;
-      exterior.roughnessMap = maps.roughness;
-      const baseScale = (paper === "watercolor" ? .32 : .22) * craft.normalBoost;
-      exterior.normalScale.set(baseScale, baseScale);
-      exterior.roughness = paper === "pearl" ? Math.min(craft.roughness, .58) : craft.roughness;
-      exterior.clearcoat = paper === "pearl" ? Math.max(craft.clearcoat, .32) : craft.clearcoat;
-      exterior.color.set(paper === "kraft" ? "#f4e1c8" : "#ffffff");
-      exterior.needsUpdate = true;
+      exterior.color.set(paper === "kraft" ? "#f3dfc6" : "#ffffff");
       backing.color.set(template.color).multiply(new THREE.Color(paper === "kraft" ? "#ecd6b6" : "#ffffff"));
     }
     const nextLeftKey = JSON.stringify([latestDraft.paper, latestDraft.birthday, latestDraft.motto ?? ""]);
@@ -858,10 +696,5 @@ export function disposeScene(root: THREE.Object3D, paper: ScenePaperMaps) {
     resources.add(normal);
     resources.add(roughness);
   }
-  // Guard shared cached edge textures from being disposed when a single stage unmounts.
-  const shared = cachedEdgeMaps ? new Set<THREE.Texture>([cachedEdgeMaps.gilded, cachedEdgeMaps.deckled]) : null;
-  for (const resource of resources) {
-    if (shared && resource instanceof THREE.Texture && shared.has(resource)) continue;
-    resource.dispose();
-  }
+  for (const resource of resources) resource.dispose();
 }

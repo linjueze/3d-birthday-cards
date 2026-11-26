@@ -69,42 +69,6 @@ function span(value: number, start: number, end: number) {
   return ease((value - start) / (end - start));
 }
 
-function createStudioEnv(renderer: THREE.WebGLRenderer) {
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  const envScene = new THREE.Scene();
-  envScene.background = new THREE.Color("#f5eee6");
-  // Warm overhead softbox + cool fill bounce so gilded gold edges, velvet sheen, and pearl iridescence
-  // reflect authentic studio light gradients when rotating the card.
-  const keyPanel = new THREE.Mesh(
-    new THREE.PlaneGeometry(8, 8),
-    new THREE.MeshBasicMaterial({ color: "#fff8ec", side: THREE.DoubleSide }),
-  );
-  keyPanel.position.set(-4, 5, 4);
-  keyPanel.lookAt(0, 0, 0);
-  const rimPanel = new THREE.Mesh(
-    new THREE.PlaneGeometry(6, 10),
-    new THREE.MeshBasicMaterial({ color: "#ffedd2", side: THREE.DoubleSide }),
-  );
-  rimPanel.position.set(5, 2, 3);
-  rimPanel.lookAt(0, 0, 0);
-  const warmFloor = new THREE.Mesh(
-    new THREE.PlaneGeometry(14, 14),
-    new THREE.MeshBasicMaterial({ color: "#d8c3ae", side: THREE.DoubleSide }),
-  );
-  warmFloor.position.set(0, -5, 0);
-  warmFloor.rotation.x = -Math.PI / 2;
-  envScene.add(keyPanel, rimPanel, warmFloor);
-  const target = pmrem.fromScene(envScene, .04);
-  keyPanel.geometry.dispose();
-  (keyPanel.material as THREE.Material).dispose();
-  rimPanel.geometry.dispose();
-  (rimPanel.material as THREE.Material).dispose();
-  warmFloor.geometry.dispose();
-  (warmFloor.material as THREE.Material).dispose();
-  pmrem.dispose();
-  return target;
-}
-
 function lights(scene: THREE.Scene) {
   const ambient = new THREE.HemisphereLight("#fffdf8", "#b19583", 1.25);
   const key = new THREE.DirectionalLight("#fff5e7", 1.7);
@@ -152,9 +116,6 @@ export function createStage(
   renderer.domElement.setAttribute("aria-hidden", "true");
   host.appendChild(renderer.domElement);
   const scene = new THREE.Scene();
-  const studioEnv = createStudioEnv(renderer);
-  scene.environment = studioEnv.texture;
-  scene.environmentIntensity = .44;
   const camera = new THREE.OrthographicCamera(-4, 4, 3, -3, .1, 40);
   camera.position.z = 14;
   const allMaps = buildPaperMaps();
@@ -738,8 +699,6 @@ export function createStage(
     renderer.domElement.removeEventListener("webglcontextlost", handleContextLoss);
     document.fonts?.removeEventListener("loadingdone", refreshFonts);
     for (const { book } of books.values()) book.deactivate();
-    scene.environment = null;
-    studioEnv.dispose();
     disposeScene(scene, allMaps);
     renderer.dispose();
     renderer.domElement.remove();

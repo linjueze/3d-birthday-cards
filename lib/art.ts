@@ -18,18 +18,13 @@ export interface CoverArt {
 export interface CoverMaterialManifest {
   procedural: (slug: TemplateSlug) => CoverArt;
   /** WebP URLs use identical framing to the procedural artwork. */
-  maps?: Partial<Record<keyof CoverArt | "baseHd", string>>;
+  maps?: Partial<Record<keyof CoverArt, string>>;
 }
 
-function preferHdCover(): boolean {
-  return typeof window !== "undefined" && window.innerWidth >= 820;
-}
-
-function coverMaps(slug: TemplateSlug): Partial<Record<keyof CoverArt | "baseHd", string>> {
+function coverMaps(slug: TemplateSlug): Partial<Record<keyof CoverArt, string>> {
   const root = withBasePath(`/assets/cards/${slug}`);
   return {
     base: `${root}/base.webp`,
-    baseHd: `${root}/base-hd.webp`,
     illustration: `${root}/relief.webp`,
     foil: `${root}/foil.webp`,
     height: `${root}/height.webp`,
@@ -237,13 +232,11 @@ export function coverArt(slug: TemplateSlug): CoverArt {
   return artwork;
 }
 
-async function renderExternalLayer(url: string, priority: "high" | "low" | "auto" = "auto", preserveNativeSize = false) {
+async function renderExternalLayer(url: string, priority: "high" | "low" | "auto" = "auto") {
   const image = await decodeImage(url, priority);
   if (!image) return undefined;
-  const w = preserveNativeSize ? image.naturalWidth : ART_WIDTH;
-  const h = preserveNativeSize ? image.naturalHeight : ART_HEIGHT;
-  const { canvas, ctx } = surface(w, h);
-  ctx.drawImage(image, 0, 0, w, h);
+  const { canvas, ctx } = surface();
+  ctx.drawImage(image, 0, 0, ART_WIDTH, ART_HEIGHT);
   return canvas;
 }
 
@@ -252,17 +245,13 @@ export function loadCoverBase(slug: TemplateSlug, priority: "high" | "low" | "au
   if (ready) return Promise.resolve(ready);
   const existing = loadedBase.get(slug);
   if (existing) return existing;
-  const maps = COVER_MANIFEST[slug].maps;
-  const wantHd = preferHdCover() && Boolean(maps?.baseHd);
-  const primaryUrl = wantHd ? maps!.baseHd! : maps?.base;
-  if (!primaryUrl) return Promise.resolve(undefined);
-  const promise = renderExternalLayer(primaryUrl, priority, wantHd)
-    .then((canvas) => canvas ?? (wantHd && maps?.base ? renderExternalLayer(maps.base, priority, false) : undefined))
-    .then((canvas) => {
-      if (canvas) cachedBase.set(slug, canvas);
-      else loadedBase.delete(slug);
-      return canvas;
-    });
+  const url = COVER_MANIFEST[slug].maps?.base;
+  if (!url) return Promise.resolve(undefined);
+  const promise = renderExternalLayer(url, priority).then((canvas) => {
+    if (canvas) cachedBase.set(slug, canvas);
+    else loadedBase.delete(slug);
+    return canvas;
+  });
   loadedBase.set(slug, promise);
   return promise;
 }
@@ -275,7 +264,7 @@ export function loadCoverArt(slug: TemplateSlug, priority: "high" | "low" | "aut
   const cached = loadedCovers.get(slug);
   if (cached) return cached;
 
-  // Fetch all full-resolution PBR layers in parallel (zero waterfall).
+  // Fetch all full-resolution PBR layers in parallel (zero waterfall, deduplicated base.webp).
   const result = Promise.all([
     loadCoverBase(slug, priority === "low" ? "low" : "high"),
     maps.illustration ? renderExternalLayer(maps.illustration, priority) : Promise.resolve(undefined),
@@ -291,52 +280,6 @@ export function loadCoverArt(slug: TemplateSlug, priority: "high" | "low" | "aut
   });
   loadedCovers.set(slug, result);
   return result;
-}
-
-const vectorFoilCache = new Map<TemplateSlug, HTMLCanvasElement>();
-
-/**
- * High-DPI (1536x2048) crisp vector antique-gold framing & unified series hallmark overlay.
- * Stays razor-sharp even at 240% zoom and sits strictly in the outer margin so it never collides
- * with any bespoke hand-painted cover title.
- */
-export function coverVectorFoilOverlay(slug: TemplateSlug): HTMLCanvasElement {
-  const cached = vectorFoilCache.get(slug);
-  if (cached) return cached;
-  const W = 1536;
-  const H = 2048;
-  const { canvas, ctx } = surface(W, H);
-  const dark = slug === "starry-wish" || slug === "confetti-atelier";
-  const metallic = gold(ctx, 28, H - 28, dark);
-
-  ctx.save();
-  ctx.lineJoin = "round";
-  ctx.lineCap = "round";
-  // Crisp outer museum-grade double hairline gold border
-  ctx.strokeStyle = metallic;
-  ctx.globalAlpha = dark ? .82 : .68;
-  ctx.lineWidth = 2.4;
-  ctx.strokeRect(24, 24, W - 48, H - 48);
-  ctx.globalAlpha = dark ? .45 : .36;
-  ctx.lineWidth = 1.2;
-  ctx.strokeRect(36, 36, W - 72, H - 72);
-
-  // Subtle top & side midpoint vector micro-diamonds
-  ctx.globalAlpha = dark ? .85 : .72;
-  star(ctx, W / 2, 24, 9, metallic, 4, .85);
-  star(ctx, 24, H / 2, 7.5, metallic, 4, .85);
-  star(ctx, W - 24, H / 2, 7.5, metallic, 4, .85);
-
-  // Unified crisp vector series hallmark along the bottom outer margin strip
-  ctx.globalAlpha = dark ? .78 : .62;
-  ctx.fillStyle = metallic;
-  ctx.font = '600 18px "Cormorant Garamond", Georgia, serif';
-  ctx.textBaseline = "middle";
-  spacedText(ctx, "ATELIER EDITION", W / 2, H - 24, 7.5);
-  ctx.restore();
-
-  vectorFoilCache.set(slug, canvas);
-  return canvas;
 }
 
 const paperPalette = {
