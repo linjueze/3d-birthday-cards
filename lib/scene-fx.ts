@@ -298,24 +298,24 @@ export function createCoverLivingFX(slug: TemplateSlug): CoverLivingFX {
 
     // Calibrated exact wick positions on candlelight-cake/base.webp
     const candles = [
-      { x: -.199, y: .333, phase: .0, scale: .92 },
-      { x: .004, y: .367, phase: 1.7, scale: 1.04 },
-      { x: .201, y: .322, phase: 3.1, scale: .92 },
+      { x: -.199, y: .333, phase: .0, scale: .94 },
+      { x: .004, y: .372, phase: 1.7, scale: 1.04 },
+      { x: .201, y: .325, phase: 3.1, scale: .94 },
     ];
     for (const c of candles) {
-      // NormalBlending warm amber halo + saturated tangerine-gold flame avoid white-clipping on cream paper
+      // NormalBlending warm amber halo + 1:1 matched slender teardrop flame on cream paper
       const haloMat = new THREE.MeshBasicMaterial({
-        map: warmHaloTex, transparent: true, depthWrite: false, blending: THREE.NormalBlending, opacity: .68,
+        map: warmHaloTex, transparent: true, depthWrite: false, blending: THREE.NormalBlending, opacity: .66,
       });
-      const halo = new THREE.Mesh(new THREE.PlaneGeometry(.46 * c.scale, .46 * c.scale), haloMat);
-      halo.position.set(c.x, c.y + .02, .002);
+      const halo = new THREE.Mesh(new THREE.PlaneGeometry(.56 * c.scale, .56 * c.scale), haloMat);
+      halo.position.set(c.x, c.y + .05, .002);
       halo.renderOrder = 5;
 
       const flameMat = new THREE.MeshBasicMaterial({
         map: flameTex, transparent: true, depthWrite: false, blending: THREE.NormalBlending, opacity: .94,
       });
-      const flame = new THREE.Mesh(new THREE.PlaneGeometry(.155 * c.scale, .235 * c.scale), flameMat);
-      flame.position.set(c.x, c.y + .035, .005);
+      const flame = new THREE.Mesh(new THREE.PlaneGeometry(.265 * c.scale, .375 * c.scale), flameMat);
+      flame.position.set(c.x, c.y + .062 * c.scale, .005);
       flame.renderOrder = 6;
       group.add(halo, flame);
 
@@ -612,15 +612,15 @@ export function createCoverLivingFX(slug: TemplateSlug): CoverLivingFX {
     const haloMat = new THREE.MeshBasicMaterial({
       map: warmHaloTex, transparent: true, depthWrite: false, blending: THREE.NormalBlending, opacity: .66,
     });
-    const halo = new THREE.Mesh(new THREE.PlaneGeometry(.46, .46), haloMat);
-    halo.position.set(wickX, wickY + .02, .003);
+    const halo = new THREE.Mesh(new THREE.PlaneGeometry(.52, .52), haloMat);
+    halo.position.set(wickX, wickY + .035, .003);
     halo.renderOrder = 5;
 
     const flameMat = new THREE.MeshBasicMaterial({
       map: flameTex, transparent: true, depthWrite: false, blending: THREE.NormalBlending, opacity: .94,
     });
-    const flame = new THREE.Mesh(new THREE.PlaneGeometry(.145, .215), flameMat);
-    flame.position.set(wickX, wickY + .035, .006);
+    const flame = new THREE.Mesh(new THREE.PlaneGeometry(.225, .315), flameMat);
+    flame.position.set(wickX, wickY + .048, .006);
     flame.renderOrder = 6;
     group.add(halo, flame);
 
