@@ -4,6 +4,62 @@
 
 **在线体验**：https://linjueze.github.io/3d-birthday-cards/
 
+<p align="center">
+  <img src="./docs/screenshots/gallery.jpg" alt="Birthday Cards 3D 封面展台预览" width="100%" />
+</p>
+
+---
+
+## 7 款 3D 烫金纸艺封面画廊
+
+<table>
+  <tr>
+    <td align="center" width="14%">
+      <img src="./public/assets/cards/candlelight-cake/base.webp" alt="烛光蛋糕" width="120" /><br />
+      <strong>烛光蛋糕</strong><br /><sub>Candlelight Cake</sub>
+    </td>
+    <td align="center" width="14%">
+      <img src="./public/assets/cards/starry-wish/base.webp" alt="星月许愿" width="120" /><br />
+      <strong>星月许愿</strong><br /><sub>Starry Wish</sub>
+    </td>
+    <td align="center" width="14%">
+      <img src="./public/assets/cards/bloom-garden/base.webp" alt="花束花园" width="120" /><br />
+      <strong>花束花园</strong><br /><sub>Bloom Garden</sub>
+    </td>
+    <td align="center" width="14%">
+      <img src="./public/assets/cards/confetti-atelier/base.webp" alt="礼盒派对" width="120" /><br />
+      <strong>礼盒派对</strong><br /><sub>Confetti Atelier</sub>
+    </td>
+    <td align="center" width="14%">
+      <img src="./public/assets/cards/sakura-mail/base.webp" alt="樱花来信" width="120" /><br />
+      <strong>樱花来信</strong><br /><sub>Sakura Post</sub>
+    </td>
+    <td align="center" width="14%">
+      <img src="./public/assets/cards/teddy-birthday/base.webp" alt="奶油小熊" width="120" /><br />
+      <strong>奶油小熊</strong><br /><sub>Teddy's Birthday</sub>
+    </td>
+    <td align="center" width="14%">
+      <img src="./public/assets/cards/atelier-tea/base.webp" alt="森系茶会" width="120" /><br />
+      <strong>森系茶会</strong><br /><sub>Atelier Tea Party</sub>
+    </td>
+  </tr>
+</table>
+
+## 界面预览
+
+<table>
+  <tr>
+    <td align="center" width="68%">
+      <img src="./docs/screenshots/editor.jpg" alt="桌面端 3D 贺卡工作台" width="100%" /><br />
+      <sub>桌面端手作书桌工作台（双页展开、贴纸拖拽、墨水与字体切换）</sub>
+    </td>
+    <td align="center" width="32%">
+      <img src="./docs/screenshots/mobile-letter.jpg" alt="手机端拆信阅读页" width="100%" /><br />
+      <sub>手机端拆信阅读（左页透明水彩扉页、八音盒与纪念图导出）</sub>
+    </td>
+  </tr>
+</table>
+
 ---
 
 ## 核心特性
