@@ -162,7 +162,7 @@ export function createFoilSheen(width: number, height: number, foilMap: THREE.Te
     uMap: { value: foilMap },
     uSweep: { value: 0 },
     uTilt: { value: new THREE.Vector2(0, 0) },
-    uOpacity: { value: darkTheme ? .82 : .64 },
+    uOpacity: { value: darkTheme ? .72 : .54 },
   };
 
   const material = new THREE.ShaderMaterial({
@@ -216,7 +216,7 @@ export function createFoilSheen(width: number, height: number, foilMap: THREE.Te
       const sweep = reduced ? -2.0 : (cycle <= 1 ? -0.35 + cycle * 2.15 : 2.2);
       uniforms.uSweep.value = sweep;
       uniforms.uTilt.value.set(yaw, pitch);
-      uniforms.uOpacity.value = (darkTheme ? .82 : .64) * vis;
+      uniforms.uOpacity.value = (darkTheme ? .72 : .54) * vis;
     },
   };
 }
@@ -263,13 +263,13 @@ export function createCoverLivingFX(slug: TemplateSlug): CoverLivingFX {
 
       updaters.push((t, vis, reduced) => {
         const flick = reduced ? 0 : Math.sin(t * 7.2 + c.phase) * .5 + Math.sin(t * 13.4 + c.phase * 1.9) * .3 + Math.cos(t * 4.3 + c.phase) * .2;
-        const sway = reduced ? 0 : Math.sin(t * 3.7 + c.phase) * .055;
-        flame.scale.set(1 - flick * .06, 1 + flick * .12, 1);
+        const sway = reduced ? 0 : Math.sin(t * 3.7 + c.phase) * .05;
+        flame.scale.set(1 - flick * .05, 1 + flick * .10, 1);
         flame.rotation.z = sway;
-        flameMat.opacity = (.74 + flick * .14) * vis;
-        const haloPulse = 1 + flick * .09;
+        flameMat.opacity = (.58 + flick * .10) * vis;
+        const haloPulse = 1 + flick * .07;
         halo.scale.setScalar(haloPulse);
-        haloMat.opacity = (.42 + flick * .1) * vis;
+        haloMat.opacity = (.30 + flick * .07) * vis;
       });
     }
 
@@ -291,7 +291,7 @@ export function createCoverLivingFX(slug: TemplateSlug): CoverLivingFX {
         spark.position.set(baseX + Math.sin(p * Math.PI * 2 + i) * .06, .34 + p * .58, .006);
         const fade = Math.sin(p * Math.PI);
         const twinkle = .65 + .35 * Math.sin(t * 6.5 + i * 2.3);
-        mat.opacity = fade * twinkle * .72 * vis;
+        mat.opacity = fade * twinkle * .54 * vis;
         spark.scale.setScalar(.7 + fade * .45);
       });
     }
@@ -314,9 +314,9 @@ export function createCoverLivingFX(slug: TemplateSlug): CoverLivingFX {
       mesh.renderOrder = 5;
       group.add(mesh);
       updaters.push((t, vis, reduced) => {
-        const tw = reduced ? .55 : .25 + .75 * (.5 + .5 * Math.sin(t * (2.2 + (i % 4) * .55) + i * 1.4));
-        mat.opacity = tw * .82 * vis;
-        mesh.scale.setScalar(.72 + tw * .42);
+        const tw = reduced ? .48 : .22 + .78 * (.5 + .5 * Math.sin(t * (2.2 + (i % 4) * .55) + i * 1.4));
+        mat.opacity = tw * .64 * vis;
+        mesh.scale.setScalar(.72 + tw * .38);
       });
     });
 
@@ -336,8 +336,8 @@ export function createCoverLivingFX(slug: TemplateSlug): CoverLivingFX {
       updaters.push((t, vis, reduced) => {
         const angle = reduced ? 0 : Math.sin(t * 1.35 + p.phase) * .065;
         glint.position.set(p.ax + Math.sin(angle) * p.len, p.ay - Math.cos(angle) * p.len, .007);
-        const pulse = reduced ? .6 : .55 + .45 * Math.sin(t * 3.2 + p.phase);
-        mat.opacity = pulse * .85 * vis;
+        const pulse = reduced ? .52 : .45 + .45 * Math.sin(t * 3.2 + p.phase);
+        mat.opacity = pulse * .64 * vis;
       });
     }
 
@@ -356,7 +356,7 @@ export function createCoverLivingFX(slug: TemplateSlug): CoverLivingFX {
       const p = cycle / 1.25;
       const ease = 1 - Math.pow(1 - p, 2);
       comet.position.set(.05 + ease * .72, .56 - ease * .38, .008);
-      cometMat.opacity = Math.sin(p * Math.PI) * .92 * vis;
+      cometMat.opacity = Math.sin(p * Math.PI) * .74 * vis;
     });
   } else if (slug === "bloom-garden") {
     const petalTex = petalSprite();
@@ -492,33 +492,33 @@ export function createCoverLivingFX(slug: TemplateSlug): CoverLivingFX {
 
     // Gentle golden wing-shimmer halos pulsing softly on the two embossed gold butterflies
     const butterflies = [
-      { x: .156, y: .458, size: .36, phase: .2 },
-      { x: .655, y: .707, size: .30, phase: 2.1 },
+      { x: .156, y: .458, size: .25, phase: .2 },
+      { x: .655, y: .707, size: .21, phase: 2.1 },
     ];
     for (const b of butterflies) {
       const haloMat = new THREE.MeshBasicMaterial({
-        map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .35,
+        map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .24,
       });
       const halo = new THREE.Mesh(new THREE.PlaneGeometry(b.size, b.size), haloMat);
       halo.position.set(b.x, b.y, .004);
       halo.renderOrder = 5;
 
       const glintMat = new THREE.MeshBasicMaterial({
-        map: starTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .55,
+        map: starTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .36,
       });
-      const glint = new THREE.Mesh(new THREE.PlaneGeometry(.13, .13), glintMat);
+      const glint = new THREE.Mesh(new THREE.PlaneGeometry(.095, .095), glintMat);
       glint.position.set(b.x, b.y, .006);
       glint.renderOrder = 6;
       group.add(halo, glint);
 
       updaters.push((t, vis, reduced) => {
-        const flutter = reduced ? .5 : .35 + .65 * (.5 + .5 * Math.sin(t * 3.1 + b.phase));
-        const bob = reduced ? 0 : Math.sin(t * 1.8 + b.phase) * .02;
+        const flutter = reduced ? .45 : .3 + .7 * (.5 + .5 * Math.sin(t * 3.1 + b.phase));
+        const bob = reduced ? 0 : Math.sin(t * 1.8 + b.phase) * .016;
         halo.position.y = b.y + bob;
         glint.position.y = b.y + bob;
-        haloMat.opacity = (.22 + flutter * .28) * vis;
-        glintMat.opacity = (.3 + flutter * .48) * vis;
-        glint.scale.setScalar(.72 + flutter * .38);
+        haloMat.opacity = (.14 + flutter * .16) * vis;
+        glintMat.opacity = (.20 + flutter * .28) * vis;
+        glint.scale.setScalar(.72 + flutter * .32);
       });
     }
 
@@ -539,7 +539,7 @@ export function createCoverLivingFX(slug: TemplateSlug): CoverLivingFX {
         const p = (t * speed + offset) % 1;
         mote.position.set(baseX + Math.sin(p * Math.PI * 2 + i) * .08, -.68 + p * 1.24, .005);
         const fade = Math.sin(p * Math.PI);
-        mat.opacity = fade * (.55 + .35 * Math.sin(t * 5.2 + i * 2.1)) * .62 * vis;
+        mat.opacity = fade * (.55 + .35 * Math.sin(t * 5.2 + i * 2.1)) * .46 * vis;
       });
     }
   } else if (slug === "teddy-birthday") {
@@ -567,26 +567,26 @@ export function createCoverLivingFX(slug: TemplateSlug): CoverLivingFX {
 
     updaters.push((t, vis, reduced) => {
       const flick = reduced ? 0 : Math.sin(t * 7.4) * .5 + Math.sin(t * 13.1 + 1.4) * .3 + Math.cos(t * 4.5) * .2;
-      const sway = reduced ? 0 : Math.sin(t * 3.8) * .055;
-      flame.scale.set(1 - flick * .06, 1 + flick * .12, 1);
+      const sway = reduced ? 0 : Math.sin(t * 3.8) * .05;
+      flame.scale.set(1 - flick * .05, 1 + flick * .10, 1);
       flame.rotation.z = sway;
-      flameMat.opacity = (.74 + flick * .14) * vis;
-      halo.scale.setScalar(1 + flick * .09);
-      haloMat.opacity = (.42 + flick * .1) * vis;
+      flameMat.opacity = (.58 + flick * .10) * vis;
+      halo.scale.setScalar(1 + flick * .07);
+      haloMat.opacity = (.30 + flick * .07) * vis;
     });
 
     // Subtle buoyant golden sheen breathing over the champagne-gold heart balloon
     const balloonGlowMat = new THREE.MeshBasicMaterial({
-      map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .32,
+      map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .22,
     });
-    const balloonGlow = new THREE.Mesh(new THREE.PlaneGeometry(.52, .52), balloonGlowMat);
+    const balloonGlow = new THREE.Mesh(new THREE.PlaneGeometry(.42, .42), balloonGlowMat);
     balloonGlow.position.set(.655, .666, .004);
     balloonGlow.renderOrder = 5;
     group.add(balloonGlow);
     updaters.push((t, vis, reduced) => {
-      const floatY = reduced ? 0 : Math.sin(t * 1.6) * .035;
+      const floatY = reduced ? 0 : Math.sin(t * 1.6) * .028;
       balloonGlow.position.y = .666 + floatY;
-      const pulse = reduced ? .28 : .2 + .22 * (.5 + .5 * Math.sin(t * 2.1));
+      const pulse = reduced ? .22 : .16 + .14 * (.5 + .5 * Math.sin(t * 2.1));
       balloonGlowMat.opacity = pulse * vis;
     });
 
@@ -608,7 +608,7 @@ export function createCoverLivingFX(slug: TemplateSlug): CoverLivingFX {
         ember.position.set(baseX + Math.sin(p * Math.PI * 2 + i) * .055, wickY + .06 + p * .62, .006);
         const fade = Math.sin(p * Math.PI);
         const twinkle = .65 + .35 * Math.sin(t * 6.2 + i * 2.1);
-        mat.opacity = fade * twinkle * .7 * vis;
+        mat.opacity = fade * twinkle * .52 * vis;
         ember.scale.setScalar(.72 + fade * .42);
       });
     }
@@ -636,11 +636,11 @@ export function createCoverLivingFX(slug: TemplateSlug): CoverLivingFX {
 
     updaters.push((t, vis, reduced) => {
       const crackle = reduced ? 0 : Math.sin(t * 11.5) * .4 + Math.sin(t * 19.3 + 1.1) * .35 + Math.cos(t * 7.2) * .25;
-      spCore.scale.setScalar(.86 + crackle * .22);
+      spCore.scale.setScalar(.84 + crackle * .18);
       spCore.rotation.z = reduced ? 0 : t * .55;
-      spCoreMat.opacity = (.78 + crackle * .18) * vis;
-      spHalo.scale.setScalar(.95 + crackle * .14);
-      spHaloMat.opacity = (.42 + crackle * .14) * vis;
+      spCoreMat.opacity = (.60 + crackle * .12) * vis;
+      spHalo.scale.setScalar(.92 + crackle * .10);
+      spHaloMat.opacity = (.30 + crackle * .09) * vis;
     });
 
     // 7 tiny radiating golden sparkler sparks popping gently around the sparkler tip
@@ -661,7 +661,7 @@ export function createCoverLivingFX(slug: TemplateSlug): CoverLivingFX {
         const r = .03 + p * .24;
         spark.position.set(spX + Math.cos(angle) * r, spY + Math.sin(angle) * r - p * p * .08, .007);
         const fade = Math.sin(p * Math.PI);
-        mat.opacity = fade * .84 * vis;
+        mat.opacity = fade * .60 * vis;
         spark.scale.setScalar(.55 + (1 - p) * .6);
       });
     }
@@ -684,7 +684,7 @@ export function createCoverLivingFX(slug: TemplateSlug): CoverLivingFX {
         const y = -.14 + p * .86;
         wisp.position.set(x, y, .005);
         const fade = Math.sin(p * Math.PI);
-        mat.opacity = fade * (i % 2 === 0 ? .66 : .34) * vis;
+        mat.opacity = fade * (i % 2 === 0 ? .48 : .24) * vis;
         wisp.scale.setScalar(.7 + fade * .4);
       });
     }
