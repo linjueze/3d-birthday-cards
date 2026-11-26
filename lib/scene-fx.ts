@@ -263,13 +263,13 @@ export function createCoverLivingFX(slug: TemplateSlug): CoverLivingFX {
 
       updaters.push((t, vis, reduced) => {
         const flick = reduced ? 0 : Math.sin(t * 7.2 + c.phase) * .5 + Math.sin(t * 13.4 + c.phase * 1.9) * .3 + Math.cos(t * 4.3 + c.phase) * .2;
-        const sway = reduced ? 0 : Math.sin(t * 3.7 + c.phase) * .05;
-        flame.scale.set(1 - flick * .05, 1 + flick * .10, 1);
+        const sway = reduced ? 0 : Math.sin(t * 3.7 + c.phase) * .06;
+        flame.scale.set(1 - flick * .065, 1 + flick * .13, 1);
         flame.rotation.z = sway;
-        flameMat.opacity = (.58 + flick * .10) * vis;
-        const haloPulse = 1 + flick * .07;
+        flameMat.opacity = (.78 + flick * .14) * vis;
+        const haloPulse = 1 + flick * .10;
         halo.scale.setScalar(haloPulse);
-        haloMat.opacity = (.30 + flick * .07) * vis;
+        haloMat.opacity = (.45 + flick * .11) * vis;
       });
     }
 
@@ -291,7 +291,7 @@ export function createCoverLivingFX(slug: TemplateSlug): CoverLivingFX {
         spark.position.set(baseX + Math.sin(p * Math.PI * 2 + i) * .06, .34 + p * .58, .006);
         const fade = Math.sin(p * Math.PI);
         const twinkle = .65 + .35 * Math.sin(t * 6.5 + i * 2.3);
-        mat.opacity = fade * twinkle * .54 * vis;
+        mat.opacity = fade * twinkle * .74 * vis;
         spark.scale.setScalar(.7 + fade * .45);
       });
     }
@@ -567,12 +567,12 @@ export function createCoverLivingFX(slug: TemplateSlug): CoverLivingFX {
 
     updaters.push((t, vis, reduced) => {
       const flick = reduced ? 0 : Math.sin(t * 7.4) * .5 + Math.sin(t * 13.1 + 1.4) * .3 + Math.cos(t * 4.5) * .2;
-      const sway = reduced ? 0 : Math.sin(t * 3.8) * .05;
-      flame.scale.set(1 - flick * .05, 1 + flick * .10, 1);
+      const sway = reduced ? 0 : Math.sin(t * 3.8) * .058;
+      flame.scale.set(1 - flick * .06, 1 + flick * .125, 1);
       flame.rotation.z = sway;
-      flameMat.opacity = (.58 + flick * .10) * vis;
-      halo.scale.setScalar(1 + flick * .07);
-      haloMat.opacity = (.30 + flick * .07) * vis;
+      flameMat.opacity = (.76 + flick * .14) * vis;
+      halo.scale.setScalar(1 + flick * .095);
+      haloMat.opacity = (.44 + flick * .10) * vis;
     });
 
     // Subtle buoyant golden sheen breathing over the champagne-gold heart balloon
@@ -608,7 +608,7 @@ export function createCoverLivingFX(slug: TemplateSlug): CoverLivingFX {
         ember.position.set(baseX + Math.sin(p * Math.PI * 2 + i) * .055, wickY + .06 + p * .62, .006);
         const fade = Math.sin(p * Math.PI);
         const twinkle = .65 + .35 * Math.sin(t * 6.2 + i * 2.1);
-        mat.opacity = fade * twinkle * .52 * vis;
+        mat.opacity = fade * twinkle * .72 * vis;
         ember.scale.setScalar(.72 + fade * .42);
       });
     }
