@@ -13,7 +13,6 @@ export interface CoverArt {
   foil: HTMLCanvasElement;
   height: HTMLCanvasElement;
   composite: HTMLCanvasElement;
-  frame?: HTMLCanvasElement;
 }
 
 export interface CoverMaterialManifest {
@@ -34,7 +33,6 @@ function coverMaps(slug: TemplateSlug): Partial<Record<keyof CoverArt | "baseHd"
     illustration: `${root}/relief.webp`,
     foil: `${root}/foil.webp`,
     height: `${root}/height.webp`,
-    frame: `${root}/frame.webp`,
     composite: `${root}/base.webp`,
   };
 }
@@ -277,20 +275,19 @@ export function loadCoverArt(slug: TemplateSlug, priority: "high" | "low" | "aut
   const cached = loadedCovers.get(slug);
   if (cached) return cached;
 
-  // Fetch all full-resolution PBR layers + 3D paper-cut arch frame in parallel (zero waterfall).
+  // Fetch all full-resolution PBR layers in parallel (zero waterfall).
   const result = Promise.all([
     loadCoverBase(slug, priority === "low" ? "low" : "high"),
     maps.illustration ? renderExternalLayer(maps.illustration, priority) : Promise.resolve(undefined),
     maps.foil ? renderExternalLayer(maps.foil, priority) : Promise.resolve(undefined),
     maps.height ? renderExternalLayer(maps.height, "low") : Promise.resolve(undefined),
-    maps.frame ? renderExternalLayer(maps.frame, priority) : Promise.resolve(undefined),
-  ]).then(([baseMap, reliefMap, foilMap, heightMap, frameMap]) => {
+  ]).then(([baseMap, reliefMap, foilMap, heightMap]) => {
     const fallback = !baseMap ? manifest.procedural(slug) : placeholderCoverArt(slug);
     const base = baseMap ?? fallback.base;
     const illustration = reliefMap ?? fallback.illustration;
     const foil = foilMap ?? fallback.foil;
     const height = heightMap ?? fallback.height;
-    return { base, illustration, foil, height, composite: base, frame: frameMap };
+    return { base, illustration, foil, height, composite: base };
   });
   loadedCovers.set(slug, result);
   return result;

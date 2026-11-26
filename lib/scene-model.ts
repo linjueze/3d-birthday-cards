@@ -152,9 +152,9 @@ const THEME_CRAFT: Record<TemplateSlug, ThemeCraftProfile> = {
   },
 };
 
-let cachedEdgeMaps: { gilded: THREE.CanvasTexture; deckled: THREE.CanvasTexture; archShadow: THREE.CanvasTexture } | null = null;
+let cachedEdgeMaps: { gilded: THREE.CanvasTexture; deckled: THREE.CanvasTexture } | null = null;
 
-function getEdgeAndShadowTextures() {
+function getEdgeTextures() {
   if (cachedEdgeMaps) return cachedEdgeMaps;
 
   // Brushed horizontal grain normal map for gilded gold stationery edges
@@ -194,42 +194,11 @@ function getEdgeAndShadowTextures() {
   }
   dCtx.putImageData(dImg, 0, 0);
 
-  // Recessed inner-arch drop shadow cast by the raised 3D paper-cut matboard frame onto the interior scene
-  const sCanvas = document.createElement("canvas");
-  sCanvas.width = 384;
-  sCanvas.height = 512;
-  const sCtx = sCanvas.getContext("2d")!;
-  const l = 48, r = 336, top = 52, base = 460, rad = (r - l) / 2;
-  sCtx.save();
-  sCtx.beginPath();
-  sCtx.moveTo(l, base);
-  sCtx.lineTo(l, top + rad);
-  sCtx.arc((l + r) / 2, top + rad, rad, Math.PI, 0, false);
-  sCtx.lineTo(r, base);
-  sCtx.closePath();
-  sCtx.clip();
-  // Cast soft top-left studio light shadow inside the arch recess
-  sCtx.shadowColor = "rgba(42, 26, 18, 0.44)";
-  sCtx.shadowBlur = 18;
-  sCtx.shadowOffsetX = 5;
-  sCtx.shadowOffsetY = 7;
-  sCtx.lineWidth = 14;
-  sCtx.strokeStyle = "rgba(42, 26, 18, 0.55)";
-  sCtx.beginPath();
-  sCtx.moveTo(l - 7, base + 7);
-  sCtx.lineTo(l - 7, top + rad);
-  sCtx.arc((l + r) / 2, top + rad, rad + 7, Math.PI, 0, false);
-  sCtx.lineTo(r + 7, base + 7);
-  sCtx.closePath();
-  sCtx.stroke();
-  sCtx.restore();
-
   const gilded = imageTexture(gCanvas, false, 4);
   const deckled = imageTexture(dCanvas, false, 4);
   gilded.wrapS = gilded.wrapT = deckled.wrapS = deckled.wrapT = THREE.RepeatWrapping;
-  const archShadow = imageTexture(sCanvas, true, 4);
 
-  cachedEdgeMaps = { gilded, deckled, archShadow };
+  cachedEdgeMaps = { gilded, deckled };
   return cachedEdgeMaps;
 }
 
@@ -249,7 +218,7 @@ export function buildBook(
 ) {
   const template = TEMPLATES.find((item) => item.slug === slug)!;
   const craft = THEME_CRAFT[slug];
-  const craftMaps = getEdgeAndShadowTextures();
+  const craftMaps = getEdgeTextures();
   const hasExternalMaps = Object.keys(COVER_MANIFEST[slug].maps ?? {}).length > 0;
   const artwork = hasExternalMaps ? placeholderCoverArt(slug) : coverArt(slug);
   const root = new THREE.Group();
@@ -308,26 +277,6 @@ export function buildBook(
     iridescenceIOR: craft.iridescenceIOR,
   });
 
-  // 3D Paper-Cut Layer 1.5: recessed inner-arch drop shadow cast by the raised outer matboard
-  const archShadowMat = new THREE.MeshBasicMaterial({
-    map: craftMaps.archShadow, transparent: true, opacity: 0, depthWrite: false,
-  });
-  // 3D Paper-Cut Layer 2: raised die-cut outer cotton matboard frame (frame.webp RGBA)
-  const frameMat = studioMaterial({
-    map: imageTexture(artwork.illustration),
-    transparent: true,
-    depthWrite: false,
-    alphaTest: .03,
-    roughness: craft.roughness,
-    clearcoat: craft.clearcoat,
-    clearcoatRoughness: craft.clearcoatRoughness,
-    sheen: craft.sheen,
-    sheenRoughness: craft.sheenRoughness,
-    sheenColor: new THREE.Color(craft.sheenColor),
-    iridescence: craft.iridescence,
-    iridescenceIOR: craft.iridescenceIOR,
-  });
-
   let reliefNormal: THREE.CanvasTexture | null = hasExternalMaps ? null : heightNormal(artwork.height, .67);
   const relief = studioMaterial({
     map: imageTexture(artwork.illustration), normalMap: reliefNormal, normalScale: new THREE.Vector2(.54, .54),
@@ -348,9 +297,9 @@ export function buildBook(
 
   const isDarkCover = slug === "starry-wish" || slug === "confetti-atelier";
   const foilSheen = createFoilSheen(CARD_WIDTH, CARD_HEIGHT, foil.map!, isDarkCover);
-  foilSheen.mesh.position.set(HALF_CARD, 0, CARD_DEPTH / 2 + .055);
+  foilSheen.mesh.position.set(HALF_CARD, 0, CARD_DEPTH / 2 + .016);
   const livingFX = createCoverLivingFX(slug);
-  livingFX.group.position.set(HALF_CARD, 0, CARD_DEPTH / 2 + .058);
+  livingFX.group.position.set(HALF_CARD, 0, CARD_DEPTH / 2 + .019);
 
   let active = true;
   let fullBaseApplied = !hasExternalMaps || isFullCoverBaseCached(slug);
@@ -375,10 +324,6 @@ export function buildBook(
       replaceMap(exterior, replacement.base);
       replaceMap(relief, replacement.illustration);
       replaceMap(foil, replacement.foil);
-      if (replacement.frame) {
-        replaceMap(frameMat, replacement.frame);
-        archShadowMat.opacity = isDarkCover ? .52 : .68;
-      }
       foilSheen.setMap(foil.map!);
       if (replacement.height !== artwork.height) {
         reliefNormal?.dispose();
@@ -390,17 +335,13 @@ export function buildBook(
     }).catch(() => undefined);
   }
   const panel = cardPlane(exterior, HALF_CARD, CARD_DEPTH / 2 + .001);
-  const archShadow = cardPlane(archShadowMat, HALF_CARD, CARD_DEPTH / 2 + .015);
-  const paperFrame = cardPlane(frameMat, HALF_CARD, CARD_DEPTH / 2 + .032);
-  const illustration = cardPlane(relief, HALF_CARD, CARD_DEPTH / 2 + .046);
-  const gilding = cardPlane(foil, HALF_CARD, CARD_DEPTH / 2 + .050);
-  const vectorFoil = cardPlane(vectorFoilMat, HALF_CARD, CARD_DEPTH / 2 + .053);
-  archShadow.renderOrder = 1;
-  paperFrame.renderOrder = 2;
-  illustration.renderOrder = 3;
-  gilding.renderOrder = 4;
-  vectorFoil.renderOrder = 5;
-  hinge.add(panel, archShadow, paperFrame, illustration, gilding, vectorFoil, foilSheen.mesh, livingFX.group);
+  const illustration = cardPlane(relief, HALF_CARD, CARD_DEPTH / 2 + .008);
+  const gilding = cardPlane(foil, HALF_CARD, CARD_DEPTH / 2 + .0115);
+  const vectorFoil = cardPlane(vectorFoilMat, HALF_CARD, CARD_DEPTH / 2 + .0135);
+  illustration.renderOrder = 2;
+  gilding.renderOrder = 3;
+  vectorFoil.renderOrder = 4;
+  hinge.add(panel, illustration, gilding, vectorFoil, foilSheen.mesh, livingFX.group);
   const backing = studioMaterial({ color: template.color, roughness: .8 });
   root.add(cardPlane(backing, 0, -CARD_DEPTH / 2 - .001, true));
 
@@ -540,16 +481,14 @@ export function buildBook(
       }
       // Preserve each theme's signature cover finish (velvet / iridescent pearl / linen / cotton)
       // while still letting user paper selection gently modulate texture & tint.
-      for (const coverMat of [exterior, frameMat]) {
-        coverMat.normalMap = maps.normal;
-        coverMat.roughnessMap = maps.roughness;
-        const baseScale = (paper === "watercolor" ? .32 : .22) * craft.normalBoost;
-        coverMat.normalScale.set(baseScale, baseScale);
-        coverMat.roughness = paper === "pearl" ? Math.min(craft.roughness, .58) : craft.roughness;
-        coverMat.clearcoat = paper === "pearl" ? Math.max(craft.clearcoat, .32) : craft.clearcoat;
-        coverMat.color.set(paper === "kraft" ? "#f4e1c8" : "#ffffff");
-        coverMat.needsUpdate = true;
-      }
+      exterior.normalMap = maps.normal;
+      exterior.roughnessMap = maps.roughness;
+      const baseScale = (paper === "watercolor" ? .32 : .22) * craft.normalBoost;
+      exterior.normalScale.set(baseScale, baseScale);
+      exterior.roughness = paper === "pearl" ? Math.min(craft.roughness, .58) : craft.roughness;
+      exterior.clearcoat = paper === "pearl" ? Math.max(craft.clearcoat, .32) : craft.clearcoat;
+      exterior.color.set(paper === "kraft" ? "#f4e1c8" : "#ffffff");
+      exterior.needsUpdate = true;
       backing.color.set(template.color).multiply(new THREE.Color(paper === "kraft" ? "#ecd6b6" : "#ffffff"));
     }
     const nextLeftKey = JSON.stringify([latestDraft.paper, latestDraft.birthday, latestDraft.motto ?? ""]);
@@ -919,8 +858,8 @@ export function disposeScene(root: THREE.Object3D, paper: ScenePaperMaps) {
     resources.add(normal);
     resources.add(roughness);
   }
-  // Guard shared cached edge/shadow textures from being disposed when a single stage unmounts.
-  const shared = cachedEdgeMaps ? new Set<THREE.Texture>([cachedEdgeMaps.gilded, cachedEdgeMaps.deckled, cachedEdgeMaps.archShadow]) : null;
+  // Guard shared cached edge textures from being disposed when a single stage unmounts.
+  const shared = cachedEdgeMaps ? new Set<THREE.Texture>([cachedEdgeMaps.gilded, cachedEdgeMaps.deckled]) : null;
   for (const resource of resources) {
     if (shared && resource instanceof THREE.Texture && shared.has(resource)) continue;
     resource.dispose();
