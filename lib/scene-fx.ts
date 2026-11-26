@@ -26,28 +26,85 @@ function glowSprite() {
 
 function flameSprite() {
   return makeCanvas(128, (ctx, s) => {
-    ctx.translate(s / 2, s * .72);
-    const outer = ctx.createRadialGradient(0, -14, 2, 0, -14, 38);
-    outer.addColorStop(0, "rgba(255, 250, 224, .95)");
-    outer.addColorStop(.42, "rgba(255, 205, 108, .75)");
-    outer.addColorStop(.82, "rgba(245, 148, 52, .25)");
-    outer.addColorStop(1, "rgba(240, 120, 40, 0)");
+    ctx.translate(s / 2, s * .74);
+    // Rich tangerine-amber outer flame body designed for crisp contrast on bright cream cardstock
+    const outer = ctx.createRadialGradient(0, -16, 2, 0, -16, 40);
+    outer.addColorStop(0, "rgba(255, 246, 196, .98)");
+    outer.addColorStop(.32, "rgba(255, 184, 58, .94)");
+    outer.addColorStop(.68, "rgba(232, 108, 24, .82)");
+    outer.addColorStop(.92, "rgba(196, 72, 16, .35)");
+    outer.addColorStop(1, "rgba(190, 62, 14, 0)");
     ctx.fillStyle = outer;
     ctx.beginPath();
-    ctx.moveTo(0, 12);
-    ctx.bezierCurveTo(-22, 6, -16, -26, 0, -52);
-    ctx.bezierCurveTo(16, -26, 22, 6, 0, 12);
+    ctx.moveTo(0, 13);
+    ctx.bezierCurveTo(-22, 7, -17, -26, 0, -54);
+    ctx.bezierCurveTo(17, -26, 22, 7, 0, 13);
     ctx.fill();
 
-    const core = ctx.createRadialGradient(0, -8, 1, 0, -8, 18);
-    core.addColorStop(0, "rgba(255, 255, 248, 1)");
-    core.addColorStop(.65, "rgba(255, 232, 165, .85)");
-    core.addColorStop(1, "rgba(255, 195, 95, 0)");
+    // Subtle warm-blue wick base for realistic candle depth
+    const wickBase = ctx.createRadialGradient(0, 5, 1, 0, 5, 9);
+    wickBase.addColorStop(0, "rgba(92, 118, 178, .55)");
+    wickBase.addColorStop(1, "rgba(92, 118, 178, 0)");
+    ctx.fillStyle = wickBase;
+    ctx.beginPath();
+    ctx.arc(0, 5, 9, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Incandescent ivory-gold inner core
+    const core = ctx.createRadialGradient(0, -10, 1, 0, -10, 19);
+    core.addColorStop(0, "rgba(255, 255, 244, 1)");
+    core.addColorStop(.55, "rgba(255, 232, 142, .94)");
+    core.addColorStop(1, "rgba(255, 175, 62, 0)");
     ctx.fillStyle = core;
     ctx.beginPath();
-    ctx.moveTo(0, 6);
-    ctx.bezierCurveTo(-10, 2, -8, -14, 0, -28);
-    ctx.bezierCurveTo(8, -14, 10, 2, 0, 6);
+    ctx.moveTo(0, 5);
+    ctx.bezierCurveTo(-10, 1, -8, -16, 0, -30);
+    ctx.bezierCurveTo(8, -16, 10, 1, 0, 5);
+    ctx.fill();
+  });
+}
+
+function warmHaloSprite() {
+  return makeCanvas(128, (ctx, s) => {
+    const c = s / 2;
+    const g = ctx.createRadialGradient(c, c, 2, c, c, c);
+    g.addColorStop(0, "rgba(255, 192, 78, .62)");
+    g.addColorStop(.32, "rgba(242, 142, 46, .36)");
+    g.addColorStop(.68, "rgba(226, 114, 34, .12)");
+    g.addColorStop(1, "rgba(220, 104, 28, 0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, s, s);
+  });
+}
+
+function amberStarSprite() {
+  return makeCanvas(128, (ctx, s) => {
+    const c = s / 2;
+    const halo = ctx.createRadialGradient(c, c, 0, c, c, c * .72);
+    halo.addColorStop(0, "rgba(255, 224, 128, .92)");
+    halo.addColorStop(.42, "rgba(232, 148, 48, .48)");
+    halo.addColorStop(1, "rgba(218, 120, 32, 0)");
+    ctx.fillStyle = halo;
+    ctx.fillRect(0, 0, s, s);
+
+    ctx.fillStyle = "#e8922c";
+    ctx.beginPath();
+    const outer = s * .42;
+    const inner = s * .09;
+    for (let i = 0; i < 8; i++) {
+      const r = i % 2 === 0 ? outer : inner;
+      const a = (i * Math.PI) / 4;
+      const x = c + Math.cos(a) * r;
+      const y = c + Math.sin(a) * r;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = "#fff6d6";
+    ctx.beginPath();
+    ctx.arc(c, c, s * .07, 0, Math.PI * 2);
     ctx.fill();
   });
 }
@@ -236,8 +293,8 @@ export function createCoverLivingFX(slug: TemplateSlug): CoverLivingFX {
 
   if (slug === "candlelight-cake") {
     const flameTex = flameSprite();
-    const glowTex = glowSprite();
-    const starTex = starSprite();
+    const warmHaloTex = warmHaloSprite();
+    const amberStarTex = amberStarSprite();
 
     // Calibrated exact wick positions on candlelight-cake/base.webp
     const candles = [
@@ -246,39 +303,40 @@ export function createCoverLivingFX(slug: TemplateSlug): CoverLivingFX {
       { x: .201, y: .322, phase: 3.1, scale: .92 },
     ];
     for (const c of candles) {
+      // NormalBlending warm amber halo + saturated tangerine-gold flame avoid white-clipping on cream paper
       const haloMat = new THREE.MeshBasicMaterial({
-        map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .48,
+        map: warmHaloTex, transparent: true, depthWrite: false, blending: THREE.NormalBlending, opacity: .68,
       });
       const halo = new THREE.Mesh(new THREE.PlaneGeometry(.46 * c.scale, .46 * c.scale), haloMat);
       halo.position.set(c.x, c.y + .02, .002);
       halo.renderOrder = 5;
 
       const flameMat = new THREE.MeshBasicMaterial({
-        map: flameTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .78,
+        map: flameTex, transparent: true, depthWrite: false, blending: THREE.NormalBlending, opacity: .94,
       });
-      const flame = new THREE.Mesh(new THREE.PlaneGeometry(.15 * c.scale, .23 * c.scale), flameMat);
+      const flame = new THREE.Mesh(new THREE.PlaneGeometry(.155 * c.scale, .235 * c.scale), flameMat);
       flame.position.set(c.x, c.y + .035, .005);
       flame.renderOrder = 6;
       group.add(halo, flame);
 
       updaters.push((t, vis, reduced) => {
         const flick = reduced ? 0 : Math.sin(t * 7.2 + c.phase) * .5 + Math.sin(t * 13.4 + c.phase * 1.9) * .3 + Math.cos(t * 4.3 + c.phase) * .2;
-        const sway = reduced ? 0 : Math.sin(t * 3.7 + c.phase) * .06;
-        flame.scale.set(1 - flick * .065, 1 + flick * .13, 1);
+        const sway = reduced ? 0 : Math.sin(t * 3.7 + c.phase) * .065;
+        flame.scale.set(1 - flick * .07, 1 + flick * .135, 1);
         flame.rotation.z = sway;
-        flameMat.opacity = (.78 + flick * .14) * vis;
-        const haloPulse = 1 + flick * .10;
+        flameMat.opacity = (.88 + flick * .11) * vis;
+        const haloPulse = 1 + flick * .11;
         halo.scale.setScalar(haloPulse);
-        haloMat.opacity = (.45 + flick * .11) * vis;
+        haloMat.opacity = (.62 + flick * .16) * vis;
       });
     }
 
-    // 10 rising golden wish embers / micro-sparkles above the candles
+    // 10 rising warm amber-gold wish embers with crisp contrast against the cream arch
     for (let i = 0; i < 10; i++) {
       const mat = new THREE.MeshBasicMaterial({
-        map: starTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0,
+        map: amberStarTex, transparent: true, depthWrite: false, blending: THREE.NormalBlending, opacity: 0,
       });
-      const size = .055 + (i % 3) * .022;
+      const size = .058 + (i % 3) * .022;
       const spark = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
       spark.renderOrder = 6;
       group.add(spark);
@@ -291,7 +349,7 @@ export function createCoverLivingFX(slug: TemplateSlug): CoverLivingFX {
         spark.position.set(baseX + Math.sin(p * Math.PI * 2 + i) * .06, .34 + p * .58, .006);
         const fade = Math.sin(p * Math.PI);
         const twinkle = .65 + .35 * Math.sin(t * 6.5 + i * 2.3);
-        mat.opacity = fade * twinkle * .74 * vis;
+        mat.opacity = fade * twinkle * .82 * vis;
         spark.scale.setScalar(.7 + fade * .45);
       });
     }
@@ -544,35 +602,36 @@ export function createCoverLivingFX(slug: TemplateSlug): CoverLivingFX {
     }
   } else if (slug === "teddy-birthday") {
     const flameTex = flameSprite();
+    const warmHaloTex = warmHaloSprite();
     const glowTex = glowSprite();
-    const starTex = starSprite();
+    const amberStarTex = amberStarSprite();
 
     // Calibrated exact strawberry-cupcake candle wick on teddy-birthday/base.webp
     const wickX = .162;
     const wickY = .017;
     const haloMat = new THREE.MeshBasicMaterial({
-      map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .48,
+      map: warmHaloTex, transparent: true, depthWrite: false, blending: THREE.NormalBlending, opacity: .66,
     });
     const halo = new THREE.Mesh(new THREE.PlaneGeometry(.46, .46), haloMat);
     halo.position.set(wickX, wickY + .02, .003);
     halo.renderOrder = 5;
 
     const flameMat = new THREE.MeshBasicMaterial({
-      map: flameTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .78,
+      map: flameTex, transparent: true, depthWrite: false, blending: THREE.NormalBlending, opacity: .94,
     });
-    const flame = new THREE.Mesh(new THREE.PlaneGeometry(.14, .21), flameMat);
+    const flame = new THREE.Mesh(new THREE.PlaneGeometry(.145, .215), flameMat);
     flame.position.set(wickX, wickY + .035, .006);
     flame.renderOrder = 6;
     group.add(halo, flame);
 
     updaters.push((t, vis, reduced) => {
       const flick = reduced ? 0 : Math.sin(t * 7.4) * .5 + Math.sin(t * 13.1 + 1.4) * .3 + Math.cos(t * 4.5) * .2;
-      const sway = reduced ? 0 : Math.sin(t * 3.8) * .058;
-      flame.scale.set(1 - flick * .06, 1 + flick * .125, 1);
+      const sway = reduced ? 0 : Math.sin(t * 3.8) * .06;
+      flame.scale.set(1 - flick * .065, 1 + flick * .13, 1);
       flame.rotation.z = sway;
-      flameMat.opacity = (.76 + flick * .14) * vis;
-      halo.scale.setScalar(1 + flick * .095);
-      haloMat.opacity = (.44 + flick * .10) * vis;
+      flameMat.opacity = (.88 + flick * .11) * vis;
+      halo.scale.setScalar(1 + flick * .10);
+      haloMat.opacity = (.60 + flick * .15) * vis;
     });
 
     // Subtle buoyant golden sheen breathing over the champagne-gold heart balloon
@@ -590,12 +649,12 @@ export function createCoverLivingFX(slug: TemplateSlug): CoverLivingFX {
       balloonGlowMat.opacity = pulse * vis;
     });
 
-    // 6 warm golden wish embers drifting gently upward above the cupcake & teddy
+    // 6 warm amber-gold wish embers drifting gently upward above the cupcake & teddy
     for (let i = 0; i < 6; i++) {
       const mat = new THREE.MeshBasicMaterial({
-        map: starTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0,
+        map: amberStarTex, transparent: true, depthWrite: false, blending: THREE.NormalBlending, opacity: 0,
       });
-      const size = .052 + (i % 3) * .02;
+      const size = .056 + (i % 3) * .02;
       const ember = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
       ember.renderOrder = 6;
       group.add(ember);
@@ -608,7 +667,7 @@ export function createCoverLivingFX(slug: TemplateSlug): CoverLivingFX {
         ember.position.set(baseX + Math.sin(p * Math.PI * 2 + i) * .055, wickY + .06 + p * .62, .006);
         const fade = Math.sin(p * Math.PI);
         const twinkle = .65 + .35 * Math.sin(t * 6.2 + i * 2.1);
-        mat.opacity = fade * twinkle * .72 * vis;
+        mat.opacity = fade * twinkle * .80 * vis;
         ember.scale.setScalar(.72 + fade * .42);
       });
     }
