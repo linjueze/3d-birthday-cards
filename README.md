@@ -96,3 +96,14 @@ lib/
   share-codec.ts           # 极短链接二进制 v3/v2/v1 编解码与本地存储
 public/assets/cards/       # 7 款主题的 PBR 封面与透明 RGBA 内页 WebP 资源
 ```
+
+---
+
+## 致谢 · Inspiration
+
+本项目的立体纸艺贺卡与烫金交互灵感源自 [3dcards.theliang.com](https://3dcards.theliang.com/)（[@dongliang1993/3d-card-master](https://github.com/dongliang1993/3d-card-master)），特此致谢。本仓库代码与 7 套封面、内页插画素材均为围绕生日贺卡场景独立实现与创作。
+
+## 开源许可 · License
+
+本项目采用 **[PolyForm Noncommercial License 1.0.0](./LICENSE)** 开源协议：允许个人学习、非商业用途的自由使用、修改与分发，**禁止任何商业用途**，分发或衍生作品须完整保留 [LICENSE](./LICENSE) 及顶部的 `Required Notice`。
+
